@@ -23,6 +23,7 @@
         .nav-menu a.active { background-color: var(--primary-color); color: white; box-shadow: var(--shadow); }
         .view { display: none; } .view.active { display: block; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .section-header .header-actions { display: flex; gap: 1rem; }
         .section-title { font-size: 1.8rem; font-weight: 600; }
         .action-btn { padding: 0.7rem 1.2rem; font-size: 0.9rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; color: white; display: inline-flex; align-items: center; gap: 0.5rem; }
         .action-btn:hover { transform: translateY(-2px); }
@@ -65,7 +66,7 @@
         label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
         input, select, textarea { width: 100%; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; }
         .form-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
-        #photo-preview { max-width: 100px; max-height: 100px; margin-top: 1rem; border-radius: 8px; }
+        #photo-preview { max-width: 100px; max-height: 100px; margin-top: 1rem; border-radius: 8px; object-fit: cover; }
         #toast { position: fixed; bottom: -100px; right: 20px; padding: 1rem 2rem; border-radius: 8px; color: white; font-weight: 500; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: bottom 0.5s ease-in-out; z-index: 9999; }
         #toast.show { bottom: 20px; } #toast.success { background-color: var(--secondary-color); } #toast.error { background-color: var(--danger-color); }
         @media (max-width: 1024px) { .detail-grid { grid-template-columns: 1fr; } }
@@ -95,12 +96,24 @@
                 currentView: 'dashboard', detailViewId: null
             },
             
-            init() { this.loadData(); this.addEventListeners(); this.navigateTo('dashboard'); },
+            // --- MODIFIED: init() now calls the automatic due generator ---
+            init() {
+                this.loadData();
+
+                // Automatically generate any missing rent dues on startup
+                const generatedCount = this.generateMissingRentDues();
+                if (generatedCount > 0) {
+                    this.saveData(); // Save immediately if changes were made
+                    this.showToast(`${generatedCount} new rent due(s) automatically generated.`);
+                }
+                
+                this.addEventListeners();
+                this.navigateTo('dashboard');
+            },
             loadData() {
                 const data = localStorage.getItem('trms_data');
                 if (data) {
                     const loadedState = JSON.parse(data);
-                    // Ensure all state properties exist, even if loading old data
                     this.state = { ...this.state, ...loadedState };
                     this.state.settings = { ...this.state.settings, ...loadedState.settings };
                 }
@@ -130,13 +143,12 @@
                     const actions = {
                         'navigate': () => this.navigateTo(view), 'navigate-detail': () => this.navigateTo(view, id),
                         'show-modal': () => this.showModal(modalType, id), 'close-modal': () => this.closeModal(),
-                        'delete-item': () => { if (confirm(`Delete this ${itemType.replace('-',' ')}?`)) this.deleteItem(itemType, id); },
+                        'delete-item': () => { if (confirm(`Delete this ${itemType.replace('-',' ')}? This action cannot be undone.`)) this.deleteItem(itemType, id); },
                         'generate-receipt': () => this.generateReceipt(id), 'generate-statement': () => this.generateMonthlyStatement(id),
                         'whatsapp-reminder': () => this.sendWhatsAppReminder(id),
                         'report-meter-broken': () => { if(confirm('Report this meter as broken?')) this.reportMeterBroken(id); },
                         'install-new-meter': () => this.installNewMeter(id),
-                        'generate-all-rent-dues': () => { if(confirm('Generate rent dues for all active tenants?')) this.generateAllRentDues(); },
-                        // NEW ACTIONS for Import/Export
+                        // 'generate-all-rent-dues' is now removed
                         'export-data': () => this.exportData(),
                         'import-data': () => document.getElementById('import-file-input')?.click()
                     };
@@ -147,22 +159,20 @@
                     const handlers = {
                         'room-form': f => this.handleRoomSubmit(f), 'tenant-form': f => this.handleTenantSubmit(f),
                         'settings-form': f => this.handleSettingsSubmit(f), 'utility-form': f => this.handleUtilitySubmit(f),
-                        'payment-form': f => this.handlePaymentSubmit(f), 'service-charge-form': f => this.handleServiceChargeSubmit(f)
+                        'payment-form': f => this.handlePaymentSubmit(f), 'service-charge-form': f => this.handleServiceChargeSubmit(f),
+                        'edit-room-form': f => this.handleEditRoomSubmit(f),
+                        'edit-tenant-form': f => this.handleEditTenantSubmit(f),
                     };
                     if (handlers[e.target.id]) handlers[e.target.id](e.target);
                 });
                 document.body.addEventListener('change', e => {
-                    if (e.target.matches('input[type="file"]') && e.target.id !== 'import-file-input') {
-                        this.previewPhoto(e);
-                    }
-                    // NEW: Listener for the import file input
-                    if (e.target.matches('#import-file-input')) {
-                        this.importData(e.target.files[0]);
-                    }
+                    if (e.target.matches('input[type="file"]') && e.target.id !== 'import-file-input') this.previewPhoto(e);
+                    if (e.target.matches('#import-file-input')) this.importData(e.target.files[0]);
                 });
             },
             
             templates: {
+                // --- MODIFIED: Removed the "Generate Monthly Rent Dues" button ---
                 dashboard() {
                     const { dues, payments, tenants, rooms, settings } = this.state;
                     const now = new Date(); const month = now.getMonth();
@@ -188,294 +198,94 @@
                             <div class="dashboard-section"><h3>System Alerts</h3><div id="alert-list">${alertsHTML || '<p>No system alerts.</p>'}</div></div>
                             <div class="dashboard-section"><h3>Quick Actions</h3>
                                 <button class="action-btn btn-primary" style="width: 100%; margin-bottom: 1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button>
-                                <button class="action-btn btn-secondary" style="width: 100%; margin-bottom: 1rem;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>
-                                <button class="action-btn btn-warning" style="width: 100%;" data-action="generate-all-rent-dues">Generate Monthly Rent Dues</button>
+                                <button class="action-btn btn-secondary" style="width: 100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>
                             </div>
                         </div>
                     </div>`;
                 },
                 rooms() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Rooms</h2><button class="action-btn btn-primary" data-action="show-modal" data-modal-type="addRoom">Add Room</button></div><div class="grid-container">${this.state.rooms.map(r=>`<div class="data-card" data-action="navigate-detail" data-view="room-detail" data-id="${r.id}"><div class="card-photo" style="background-image:url(${r.photo||''})"><span class="card-status status-${r.status}">${r.status}</span></div><div class="card-content"><h3 class="card-title">Room ${r.number}</h3><p class="card-info">Rent: ${this.state.settings.currencySymbol}${r.rent}/month</p><p class="card-info">Tenant: ${this.state.tenants.find(t=>t.id===r.tenantId)?.name||'<i>Vacant</i>'}</p></div></div>`).join('')||'<p>No rooms found.</p>'}</div></div>`;},
                 tenants() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Tenants</h2><button class="action-btn btn-secondary" data-action="show-modal" data-modal-type="addTenant">Add Tenant</button></div><div class="grid-container">${this.state.tenants.map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"><span class="card-status" style="color:${t.isVerified?'green':'red'}">${t.isVerified?'Verified':'Not Verified'}</span></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room: ${this.state.rooms.find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Phone: ${t.phone}</p></div></div>`).join('')||'<p>No tenants found.</p>'}</div></div>`;},
-                
-                // --- MODIFIED: Settings template with Import/Export ---
-                settings() {
-                    return `<div class="view active">
-                        <div class="section-header"><h2 class="section-title">Settings</h2></div>
-                        <div class="detail-card" style="max-width:500px;">
-                            <form id="settings-form">
-                                <h4>General Settings</h4>
-                                <div class="form-group"><label>Electricity Rate (per unit)</label><input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}"></div>
-                                <div class="form-group"><label>Currency Symbol</label><input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}"></div>
-                                <div class="form-actions"><button type="submit" class="action-btn btn-primary">Save Settings</button></div>
-                            </form>
-                        </div>
-                        <div class="detail-card" style="max-width:500px;margin-top:2rem;">
-                            <h4>Data Management</h4>
-                            <p style="margin-bottom:1rem;color:var(--text-light)">Export all system data to a JSON file or import data from a backup file.</p>
-                            <div style="display:flex; gap:1rem; margin-bottom:1.5rem;">
-                                <button class="action-btn btn-secondary" data-action="export-data">Export Data</button>
-                                <button class="action-btn btn-primary" data-action="import-data">Import Data</button>
-                                <input type="file" id="import-file-input" style="display:none;" accept=".json">
-                            </div>
-                            <hr style="margin: 1.5rem 0; border-color: var(--border-color);">
-                            <h4>Danger Zone</h4>
-                            <p style="margin-bottom:1rem;color:var(--text-light)">Permanently delete all data. This action cannot be undone.</p>
-                            <button class="action-btn btn-danger" data-action="delete-item" data-item-type="all-data">Delete All Data</button>
-                        </div>
-                    </div>`;
-                },
-                roomDetail(id) {
-                    const room = this.state.rooms.find(r => r.id === id);
-                    if (!room) return `<p>Room not found.</p>`;
-                    const tenant = this.state.tenants.find(t => t.id === room.tenantId);
-                    const readings = this.state.utilityReadings.filter(ur => ur.roomId === id && ur.meterInstallationId === room.meterInstallationId).sort((a,b) => new Date(b.date) - new Date(a.date));
-                    let meterActionBtn;
-                    if(room.meterStatus === 'broken') meterActionBtn = `<button class="action-btn btn-warning" data-action="install-new-meter" data-id="${id}">Install New Meter</button>`;
-                    else meterActionBtn = `<button class="action-btn btn-danger" data-action="report-meter-broken" data-id="${id}">Report Meter Broken</button>`;
-
-                    return `<div class="view active"><div class="section-header"><button class="action-btn btn-cancel" data-action="navigate" data-view="rooms">← Back to Rooms</button><button class="action-btn btn-danger" data-action="delete-item" data-item-type="room" data-id="${id}">Delete Room</button></div><div class="detail-view-header"><div class="detail-photo" style="background-image: url(${room.photo || ''})"></div><div class="detail-info"><h2>Room ${room.number}</h2><p>Status: ${room.status}</p><p>Tenant: ${tenant ? tenant.name : 'Vacant'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Room Information</h4><ul><li><span>Monthly Rent</span><strong>${this.state.settings.currencySymbol}${room.rent}</strong></li><li><span>Meter Status</span><strong>${room.meterStatus}</strong></li></ul></div><div class="detail-card"><h4>Utility Readings (Current Meter)</h4><div>${readings.map(r => `<div class="payment-history-item"><p><strong>${new Date(r.date).toLocaleDateString()}</strong> - Reading: ${r.reading} units</p></div>`).join('') || '<p>No readings for this meter.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Meter Management</h4>${meterActionBtn}</div><div class="detail-card"><h4>Add Utility Reading</h4><form id="utility-form" data-room-id="${id}"><div class="form-group"><label>New Meter Reading</label><input type="number" id="meter-reading" required ${room.meterStatus === 'broken' ? 'disabled' : ''}></div><button type="submit" class="action-btn btn-secondary" style="width:100%" ${room.meterStatus === 'broken' ? 'disabled' : ''}>Generate Bill</button></form></div></div></div></div>`;
-                },
-                // --- MODIFIED: Tenant Detail template with new Payment form ---
-                tenantDetail(id) {
-                    const tenant = this.state.tenants.find(t => t.id === id);
-                    if (!tenant) return `<p>Tenant not found.</p>`;
-                    const room = this.state.rooms.find(r => r.id === tenant.roomId);
-                    const dues = this.state.dues.filter(d => d.tenantId === id);
-                    const payments = this.state.payments.filter(p => p.tenantId === id);
-                    const transactions = [...dues.map(d => ({...d, isDue: true})), ...payments.map(p => ({...p, isPayment: true}))].sort((a,b) => new Date(b.date) - new Date(a.date));
-                    const totalDues = dues.reduce((s,d) => s+d.amount, 0);
-                    const totalPayments = payments.reduce((s,p) => s+p.amount, 0);
-                    const balance = totalDues - totalPayments;
-                    return `<div class="view active">
-                        <div class="section-header">
-                            <button class="action-btn btn-cancel" data-action="navigate" data-view="tenants">← Back</button>
-                            <div>
-                                <button class="action-btn btn-secondary" data-action="generate-statement" data-id="${id}">Monthly Statement</button>
-                                <button class="action-btn btn-danger" style="margin-left:1rem;" data-action="delete-item" data-item-type="tenant" data-id="${id}">Delete Tenant</button>
-                            </div>
-                        </div>
-                        <div class="detail-view-header">
-                            <div class="detail-photo" style="background-image:url(${tenant.photo||''})"></div>
-                            <div class="detail-info">
-                                <h2>${tenant.name}</h2>
-                                <p>Room ${room?.number||'N/A'}</p>
-                                <p>${tenant.isVerified ?'✔ Verified':'✖ Not Verified'}</p>
-                            </div>
-                        </div>
-                        <div class="detail-grid">
-                            <div class="detail-main">
-                                <div class="detail-card">
-                                    <h4>Transactions</h4>
-                                    ${balance > 0 ? `<div class="alert-item danger">Pending Balance: <strong>${this.state.settings.currencySymbol}${balance.toLocaleString('en-IN')}</strong></div>` : `<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared.</div>`}
-                                    <div id="transaction-list">${transactions.map(t => `<div class="transaction-item ${t.isDue ? 'due' : 'payment'}">
-                                        <div>
-                                            <p><strong>${t.isDue?'-':'+'}${this.state.settings.currencySymbol}${t.amount.toLocaleString('en-IN')}</strong> - ${t.description || t.category || t.type}</p>
-                                            <p style="font-size:0.9rem;color:var(--text-light)">${new Date(t.date).toLocaleDateString()}</p>
-                                        </div>
-                                        ${t.isPayment ? `<button class="action-btn btn-cancel" style="padding:0.3rem 0.6rem" data-action="generate-receipt" data-id="${t.id}">Receipt</button>` : ''}
-                                    </div>`).join('') || '<p>No transactions.</p>'}</div>
-                                </div>
-                            </div>
-                            <div class="detail-sidebar">
-                                <div class="detail-card">
-                                    <h4>Contact & Info</h4>
-                                    <ul>
-                                        <li><span>Phone</span><strong>${tenant.phone}</strong></li>
-                                        <li><span>Move-in Date</span><strong>${new Date(tenant.moveInDate).toLocaleDateString()}</strong></li>
-                                    </ul>
-                                </div>
-                                <div class="detail-card">
-                                    <h4>Add Payment</h4>
-                                    <form id="payment-form" data-tenant-id="${id}">
-                                        <div class="form-group">
-                                            <label for="payment-amount">Amount Paid</label>
-                                            <input type="number" id="payment-amount" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="payment-category">Payment For</label>
-                                            <select id="payment-category" required>
-                                                <option value="Rent">Rent</option>
-                                                <option value="Electricity">Electricity</option>
-                                                <option value="Service Charge">Service Charge</option>
-                                                <option value="Other">Other</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="payment-description">Description/Notes (Optional)</label>
-                                            <input type="text" id="payment-description" placeholder="e.g., Rent for May">
-                                        </div>
-                                        <button type="submit" class="action-btn btn-secondary" style="width:100%">Record Payment</button>
-                                    </form>
-                                </div>
-                                <div class="detail-card">
-                                    <h4>Add Service Charge</h4>
-                                    <form id="service-charge-form" data-tenant-id="${id}">
-                                        <div class="form-group">
-                                            <label>Charge Description</label>
-                                            <input type="text" id="charge-desc" placeholder="e.g., Late Fee, Repair" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Amount</label>
-                                            <input type="number" id="charge-amount" required>
-                                        </div>
-                                        <button type="submit" class="action-btn btn-warning" style="width:100%">Add Charge</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                }
+                settings() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Settings</h2></div><div class="detail-card" style="max-width:500px;"><form id="settings-form"><h4>General Settings</h4><div class="form-group"><label>Electricity Rate (per unit)</label><input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}"></div><div class="form-group"><label>Currency Symbol</label><input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}"></div><div class="form-actions"><button type="submit" class="action-btn btn-primary">Save Settings</button></div></form></div><div class="detail-card" style="max-width:500px;margin-top:2rem;"><h4>Data Management</h4><p style="margin-bottom:1rem;color:var(--text-light)">Export all system data or import from a backup file.</p><div style="display:flex;gap:1rem;margin-bottom:1.5rem;"><button class="action-btn btn-secondary" data-action="export-data">Export Data</button><button class="action-btn btn-primary" data-action="import-data">Import Data</button><input type="file" id="import-file-input" style="display:none;" accept=".json"></div><hr style="margin:1.5rem 0;border-color:var(--border-color);"><h4>Danger Zone</h4><p style="margin-bottom:1rem;color:var(--text-light)">Permanently delete all data.</p><button class="action-btn btn-danger" data-action="delete-item" data-item-type="all-data">Delete All Data</button></div></div>`;},
+                roomDetail(id) { const room = this.state.rooms.find(r => r.id === id); if (!room) return `<p>Room not found.</p>`; const tenant = this.state.tenants.find(t => t.id === room.tenantId); const readings = this.state.utilityReadings.filter(ur => ur.roomId === id && ur.meterInstallationId === room.meterInstallationId).sort((a,b) => new Date(b.date) - new Date(a.date)); let meterActionBtn = (room.meterStatus === 'broken') ? `<button class="action-btn btn-warning" data-action="install-new-meter" data-id="${id}">Install New Meter</button>` : `<button class="action-btn btn-danger" data-action="report-meter-broken" data-id="${id}">Report Meter Broken</button>`; return `<div class="view active"><div class="section-header"><div class="header-actions"><button class="action-btn btn-cancel" data-action="navigate" data-view="rooms">← Back</button><button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editRoom" data-id="${id}">Edit Details</button></div><button class="action-btn btn-danger" data-action="delete-item" data-item-type="room" data-id="${id}">Delete Room</button></div><div class="detail-view-header"><div class="detail-photo" style="background-image: url(${room.photo || ''})"></div><div class="detail-info"><h2>Room ${room.number}</h2><p>Status: ${room.status}</p><p>Tenant: ${tenant ? tenant.name : 'Vacant'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Room Information</h4><ul><li><span>Monthly Rent</span><strong>${this.state.settings.currencySymbol}${room.rent}</strong></li><li><span>Meter Status</span><strong>${room.meterStatus}</strong></li></ul></div><div class="detail-card"><h4>Utility Readings (Current Meter)</h4><div>${readings.map(r => `<div class="payment-history-item"><p><strong>${new Date(r.date).toLocaleDateString()}</strong> - Reading: ${r.reading} units</p></div>`).join('') || '<p>No readings for this meter.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Meter Management</h4>${meterActionBtn}</div><div class="detail-card"><h4>Add Utility Reading</h4><form id="utility-form" data-room-id="${id}"><div class="form-group"><label>New Meter Reading</label><input type="number" id="meter-reading" required ${room.meterStatus === 'broken' ? 'disabled' : ''}></div><button type="submit" class="action-btn btn-secondary" style="width:100%" ${room.meterStatus === 'broken' ? 'disabled' : ''}>Generate Bill</button></form></div></div></div></div>`; },
+                tenantDetail(id) { const tenant = this.state.tenants.find(t => t.id === id); if (!tenant) return `<p>Tenant not found.</p>`; const room = this.state.rooms.find(r => r.id === tenant.roomId); const dues = this.state.dues.filter(d => d.tenantId === id); const payments = this.state.payments.filter(p => p.tenantId === id); const transactions = [...dues.map(d => ({...d, isDue: true})), ...payments.map(p => ({...p, isPayment: true}))].sort((a,b) => new Date(b.date) - new Date(a.date)); const balance = dues.reduce((s,d) => s+d.amount, 0) - payments.reduce((s,p) => s+p.amount, 0); return `<div class="view active"><div class="section-header"><div class="header-actions"><button class="action-btn btn-cancel" data-action="navigate" data-view="tenants">← Back</button><button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editTenant" data-id="${id}">Edit Details</button></div><div class="header-actions"><button class="action-btn btn-secondary" data-action="generate-statement" data-id="${id}">Statement</button><button class="action-btn btn-danger" data-action="delete-item" data-item-type="tenant" data-id="${id}">Delete Tenant</button></div></div><div class="detail-view-header"><div class="detail-photo" style="background-image:url(${tenant.photo||''})"></div><div class="detail-info"><h2>${tenant.name}</h2><p>Room ${room?.number||'N/A'}</p><p>${tenant.isVerified ?'✔ Verified':'✖ Not Verified'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Transactions</h4>${balance > 0 ? `<div class="alert-item danger">Pending Balance: <strong>${this.state.settings.currencySymbol}${balance.toLocaleString('en-IN')}</strong></div>` : `<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared.</div>`}<div id="transaction-list">${transactions.map(t => `<div class="transaction-item ${t.isDue ? 'due' : 'payment'}"><div><p><strong>${t.isDue?'-':'+'}${this.state.settings.currencySymbol}${t.amount.toLocaleString('en-IN')}</strong> - ${t.description||t.category||t.type}</p><p style="font-size:0.9rem;color:var(--text-light)">${new Date(t.date).toLocaleDateString()}</p></div>${t.isPayment ? `<button class="action-btn btn-cancel" style="padding:0.3rem 0.6rem" data-action="generate-receipt" data-id="${t.id}">Receipt</button>` : ''}</div>`).join('') || '<p>No transactions.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Contact & Info</h4><ul><li><span>Phone</span><strong>${tenant.phone}</strong></li><li><span>Move-in Date</span><strong>${new Date(tenant.moveInDate).toLocaleDateString()}</strong></li></ul></div><div class="detail-card"><h4>Add Payment</h4><form id="payment-form" data-tenant-id="${id}"><div class="form-group"><label for="payment-amount">Amount Paid</label><input type="number" id="payment-amount" required></div><div class="form-group"><label for="payment-category">Payment For</label><select id="payment-category" required><option value="Rent">Rent</option><option value="Electricity">Electricity</option><option value="Service Charge">Service Charge</option><option value="Other">Other</option></select></div><div class="form-group"><label for="payment-description">Description/Notes</label><input type="text" id="payment-description" placeholder="e.g., Rent for May"></div><button type="submit" class="action-btn btn-secondary" style="width:100%">Record Payment</button></form></div><div class="detail-card"><h4>Add Service Charge</h4><form id="service-charge-form" data-tenant-id="${id}"><div class="form-group"><label>Charge Description</label><input type="text" id="charge-desc" placeholder="e.g., Late Fee, Repair" required></div><div class="form-group"><label>Amount</label><input type="number" id="charge-amount" required></div><button type="submit" class="action-btn btn-warning" style="width:100%">Add Charge</button></form></div></div></div></div>`; }
             },
 
-            // --- MODALS ---
-            showModal(type) {
-                const modalContainer = document.getElementById('modal-container');
-                let modalHTML = '';
-                if (type === 'addRoom') modalHTML = `<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;
-                else if (type === 'addTenant') {
-                     const availableRooms = this.state.rooms.filter(r => r.status === 'available');
-                     modalHTML = `<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${availableRooms.length===0?'disabled':''}><option value="">Select a room</option>${availableRooms.map(r => `<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${availableRooms.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;
-                }
-                modalContainer.innerHTML = modalHTML;
-            },
+            showModal(type, id = null) { const modalContainer=document.getElementById('modal-container');let modalHTML='';if(type==='addRoom'){modalHTML=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;}else if(type==='editRoom'){const r=this.state.rooms.find(rm=>rm.id===id);if(!r)return;modalHTML=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}"></div><div class="form-group"><label>Room Photo (leave blank to keep existing)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'};"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;}else if(type==='addTenant'){const aR=this.state.rooms.filter(r=>r.status==='available');modalHTML=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;}else if(type==='editTenant'){const t=this.state.tenants.find(tn=>tn.id===id);if(!t)return;const cR=this.state.rooms.find(r=>r.id===t.roomId),aR=this.state.rooms.filter(r=>r.status==='available'),rO=[cR,...aR].filter(Boolean),uRO=[...new Map(rO.map(i=>[i['id'],i])).values()];modalHTML=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (leave blank to keep existing)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'};"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;} modalContainer.innerHTML=modalHTML; },
             closeModal() { document.getElementById('modal-container').innerHTML = ''; },
 
             // --- FORM HANDLERS ---
-            async handleRoomSubmit(form) {
-                const formData = new FormData(form);
-                this.state.rooms.push({ id: `room_${Date.now()}`, number: formData.get('number'), rent: parseFloat(formData.get('rent')), status: 'available', tenantId: null, photo: await this.readFileAsBase64(formData.get('photo')), meterStatus: 'ok', meterInstallationId: `m_${Date.now()}` });
-                this.saveData(); this.closeModal(); this.render(); this.showToast('Room added!');
-            },
-            async handleTenantSubmit(form) {
-                const formData = new FormData(form), roomId = formData.get('roomId');
-                if (!roomId) { this.showToast('Please select a room.', 'error'); return; }
-                const newTenant = { id: `tenant_${Date.now()}`, name: formData.get('name'), phone: formData.get('phone'), moveInDate: formData.get('moveInDate'), isVerified: formData.get('isVerified') === 'on', photo: await this.readFileAsBase64(formData.get('photo')), roomId: roomId };
-                this.state.tenants.push(newTenant);
-                const room = this.state.rooms.find(r => r.id === roomId); if (room) { room.status = 'occupied'; room.tenantId = newTenant.id; }
-                this.saveData(); this.closeModal(); this.navigateTo('tenants'); this.showToast('Tenant added!');
-            },
-            handleSettingsSubmit(form) { this.state.settings.electricityRate = parseFloat(form.querySelector('#electricity-rate').value); this.state.settings.currencySymbol = form.querySelector('#currency-symbol').value; this.saveData(); this.render(); this.showToast('Settings saved!'); },
-            handleUtilitySubmit(form) {
-                const roomId = form.dataset.roomId;
-                const room = this.state.rooms.find(r=>r.id===roomId);
-                const newReading = parseInt(form.querySelector('#meter-reading').value);
-                const lastReading = this.state.utilityReadings.filter(r => r.meterInstallationId === room.meterInstallationId).sort((a,b) => b.reading - a.reading)[0]?.reading || 0;
-                if (newReading <= lastReading) { this.showToast('New reading must be > last reading.', 'error'); return; }
-                const consumption = newReading - lastReading;
-                const billAmount = consumption * this.state.settings.electricityRate;
-                this.state.utilityReadings.push({ id: `ur_${Date.now()}`, roomId, date: new Date().toISOString(), reading: newReading, meterInstallationId: room.meterInstallationId });
-                if (room?.tenantId) this.state.dues.push({ id: `due_${Date.now()}`, tenantId: room.tenantId, amount: parseFloat(billAmount.toFixed(2)), date: new Date().toISOString(), type: 'utility', description: `Utility Bill (${consumption} units)` });
-                this.saveData(); this.render(); this.showToast(`Bill of ${this.state.settings.currencySymbol}${billAmount.toFixed(2)} generated.`);
-            },
-            // --- MODIFIED: Payment handler for new form ---
-            handlePaymentSubmit(form) {
-                const newPayment = {
-                    id: `pay_${Date.now()}`,
-                    tenantId: form.dataset.tenantId,
-                    amount: parseFloat(form.querySelector('#payment-amount').value),
-                    date: new Date().toISOString(),
-                    category: form.querySelector('#payment-category').value,
-                    description: form.querySelector('#payment-description').value || form.querySelector('#payment-category').value + " Payment"
-                };
-                this.state.payments.push(newPayment);
-                this.saveData();
-                this.render();
-                this.showToast('Payment recorded!');
-            },
-            handleServiceChargeSubmit(form) {
-                this.state.dues.push({ id: `due_${Date.now()}`, tenantId: form.dataset.tenantId, amount: parseFloat(form.querySelector('#charge-amount').value), date: new Date().toISOString(), type: 'service', description: form.querySelector('#charge-desc').value });
-                this.saveData(); this.render(); this.showToast('Service charge added!');
-            },
+            async handleRoomSubmit(form) { const f=new FormData(form);this.state.rooms.push({id:`room_${Date.now()}`,number:f.get('number'),rent:parseFloat(f.get('rent')),status:'available',tenantId:null,photo:await this.readFileAsBase64(f.get('photo')),meterStatus:'ok',meterInstallationId:`m_${Date.now()}`});this.saveData();this.closeModal();this.render();this.showToast('Room added!');},
+            async handleTenantSubmit(form) { const f=new FormData(form),rId=f.get('roomId');if(!rId){this.showToast('Please select a room.','error');return;}const nT={id:`tenant_${Date.now()}`,name:f.get('name'),phone:f.get('phone'),moveInDate:f.get('moveInDate'),isVerified:f.get('isVerified')==='on',photo:await this.readFileAsBase64(f.get('photo')),roomId:rId};this.state.tenants.push(nT);const rm=this.state.rooms.find(r=>r.id===rId);if(rm){rm.status='occupied';rm.tenantId=nT.id;}this.saveData();this.closeModal();this.navigateTo('tenants');this.showToast('Tenant added!');},
+            handleSettingsSubmit(form) {this.state.settings.electricityRate=parseFloat(form.querySelector('#electricity-rate').value);this.state.settings.currencySymbol=form.querySelector('#currency-symbol').value;this.saveData();this.render();this.showToast('Settings saved!');},
+            handleUtilitySubmit(form) { const rId=form.dataset.roomId,r=this.state.rooms.find(rm=>rm.id===rId),nR=parseInt(form.querySelector('#meter-reading').value),lR=this.state.utilityReadings.filter(ur=>ur.meterInstallationId===r.meterInstallationId).sort((a,b)=>b.reading-a.reading)[0]?.reading||0;if(nR<=lR){this.showToast('New reading must be > last.','error');return;}const c=nR-lR,b=c*this.state.settings.electricityRate;this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:nR,meterInstallationId:r.meterInstallationId});if(r?.tenantId)this.state.dues.push({id:`due_${Date.now()}`,tenantId:r.tenantId,amount:parseFloat(b.toFixed(2)),date:new Date().toISOString(),type:'utility',description:`Utility Bill (${c} units)`});this.saveData();this.render();this.showToast(`Bill of ${this.state.settings.currencySymbol}${b.toFixed(2)} generated.`);},
+            handlePaymentSubmit(form) { this.state.payments.push({id:`pay_${Date.now()}`,tenantId:form.dataset.tenantId,amount:parseFloat(form.querySelector('#payment-amount').value),date:new Date().toISOString(),category:form.querySelector('#payment-category').value,description:form.querySelector('#payment-description').value||form.querySelector('#payment-category').value+" Payment"});this.saveData();this.render();this.showToast('Payment recorded!');},
+            handleServiceChargeSubmit(form) { this.state.dues.push({id:`due_${Date.now()}`,tenantId:form.dataset.tenantId,amount:parseFloat(form.querySelector('#charge-amount').value),date:new Date().toISOString(),type:'service',description:form.querySelector('#charge-desc').value});this.saveData();this.render();this.showToast('Service charge added!');},
+            async handleEditRoomSubmit(form) { const id=form.dataset.id,r=this.state.rooms.find(rm=>rm.id===id);if(!r)return;const f=new FormData(form);r.number=f.get('number');r.rent=parseFloat(f.get('rent'));const p=f.get('photo');if(p&&p.size>0)r.photo=await this.readFileAsBase64(p);this.saveData();this.closeModal();this.render();this.showToast('Room details updated!');},
+            async handleEditTenantSubmit(form) { const id=form.dataset.id,t=this.state.tenants.find(tn=>tn.id===id);if(!t)return;const f=new FormData(form),oRId=t.roomId,nRId=f.get('roomId');t.name=f.get('name');t.phone=f.get('phone');t.moveInDate=f.get('moveInDate');t.isVerified=f.get('isVerified')==='on';t.roomId=nRId;const p=f.get('photo');if(p&&p.size>0)t.photo=await this.readFileAsBase64(p);if(oRId!==nRId){const oR=this.state.rooms.find(r=>r.id===oRId);if(oR){oR.status='available';oR.tenantId=null;}const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}}this.saveData();this.closeModal();this.render();this.showToast('Tenant details updated!');},
 
             // --- ACTIONS & UTILITIES ---
-            deleteItem(type, id) {
-                if (type === 'room') {
-                    if (this.state.rooms.find(r => r.id === id)?.status === 'occupied') { this.showToast('Cannot delete an occupied room.', 'error'); return; }
-                    this.state.rooms = this.state.rooms.filter(r => r.id !== id); this.navigateTo('rooms');
-                } else if (type === 'tenant') {
-                    const tenant = this.state.tenants.find(t => t.id === id);
-                    if (tenant) { const room = this.state.rooms.find(r => r.id === tenant.roomId); if (room) { room.status = 'available'; room.tenantId = null; } }
-                    this.state.tenants = this.state.tenants.filter(t => t.id !== id); this.state.dues = this.state.dues.filter(d => d.tenantId !== id); this.state.payments = this.state.payments.filter(p => p.tenantId !== id); this.navigateTo('tenants');
-                } else if (type === 'all-data') { this.state = { rooms: [], tenants: [], dues: [], payments: [], utilityReadings: [], settings: this.state.settings, currentView: 'dashboard', detailViewId: null }; this.navigateTo('dashboard'); }
-                this.saveData(); this.showToast(`${type.replace('-',' ')} deleted.`, 'success');
-            },
-            // --- NEW: Export Data function ---
-            exportData() {
-                try {
-                    const dataStr = JSON.stringify(this.state, null, 2); // Pretty print JSON
-                    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                    const url = URL.createObjectURL(dataBlob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    const date = new Date().toISOString().split('T')[0];
-                    link.download = `trms_backup_${date}.json`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                    this.showToast('Data exported successfully!');
-                } catch (error) {
-                    console.error('Export failed:', error);
-                    this.showToast('Data export failed.', 'error');
-                }
-            },
-            // --- NEW: Import Data function ---
-            importData(file) {
-                if (!file) return;
-                if (!confirm('This will overwrite all current data with the content of the selected file. Are you sure you want to proceed?')) {
-                    return;
-                }
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedState = JSON.parse(e.target.result);
-                        // Basic validation to ensure it's a valid state object
-                        if (importedState && typeof importedState.rooms !== 'undefined' && typeof importedState.tenants !== 'undefined') {
-                            this.state = importedState;
-                            this.saveData();
-                            this.navigateTo('dashboard'); // Go to dashboard to reflect changes
-                            this.showToast('Data imported successfully!');
-                        } else {
-                            throw new Error('Invalid file format.');
-                        }
-                    } catch (error) {
-                        console.error('Import failed:', error);
-                        this.showToast('Import failed. Invalid or corrupted file.', 'error');
+            deleteItem(type, id) { if(type==='room'){if(this.state.rooms.find(r=>r.id===id)?.status==='occupied'){this.showToast('Cannot delete an occupied room.','error');return;}this.state.rooms=this.state.rooms.filter(r=>r.id!==id);this.navigateTo('rooms');}else if(type==='tenant'){const t=this.state.tenants.find(t=>t.id===id);if(t){const r=this.state.rooms.find(r=>r.id===t.roomId);if(r){r.status='available';r.tenantId=null;}}this.state.tenants=this.state.tenants.filter(t=>t.id!==id);this.state.dues=this.state.dues.filter(d=>d.tenantId!==id);this.state.payments=this.state.payments.filter(p=>p.tenantId!==id);this.navigateTo('tenants');}else if(type==='all-data'){this.state={...this.state,rooms:[],tenants:[],dues:[],payments:[],utilityReadings:[]};this.navigateTo('dashboard');}this.saveData();this.showToast(`${type.replace('-',' ')} deleted.`,'success');},
+            exportData() { try{const d=JSON.stringify(this.state,null,2),b=new Blob([d],{type:'application/json'}),u=URL.createObjectURL(b),l=document.createElement('a');l.href=u;l.download=`trms_backup_${new Date().toISOString().split('T')[0]}.json`;document.body.appendChild(l);l.click();document.body.removeChild(l);URL.revokeObjectURL(u);this.showToast('Data exported!');}catch(e){console.error('Export failed:',e);this.showToast('Data export failed.','error');}},
+            importData(file) { if(!file)return;if(!confirm('This will overwrite all current data. Proceed?'))return;const r=new FileReader();r.onload=e=>{try{const i=JSON.parse(e.target.result);if(i&&typeof i.rooms!=='undefined'){this.state=i;this.saveData();this.navigateTo('dashboard');this.showToast('Data imported!');}else{throw new Error('Invalid file format.');}}catch(err){console.error('Import failed:',err);this.showToast('Import failed. Invalid file.','error');}};r.onerror=()=>this.showToast('Failed to read file.','error');r.readAsText(file);},
+            reportMeterBroken(roomId) { const r=this.state.rooms.find(rm=>rm.id===roomId);if(r)r.meterStatus='broken';this.saveData();this.render();},
+            installNewMeter(roomId) {const i=parseInt(prompt("Initial reading of new meter:","0"));if(isNaN(i))return;const r=this.state.rooms.find(rm=>rm.id===roomId);if(r){r.meterStatus='ok';r.meterInstallationId=`m_${Date.now()}`;}this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId,date:new Date().toISOString(),reading:i,meterInstallationId:r.meterInstallationId});this.saveData();this.render();this.showToast('New meter installed!');},
+            
+            // --- NEW: Automatic Rent Due Generation Logic ---
+            generateMissingRentDues() {
+                let generatedCount = 0;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+                this.state.tenants.forEach(tenant => {
+                    const room = this.state.rooms.find(r => r.id === tenant.roomId);
+                    if (!room || !tenant.moveInDate) {
+                        return; // Skip if tenant has no room or move-in date
                     }
-                };
-                reader.onerror = () => {
-                    this.showToast('Failed to read the file.', 'error');
-                };
-                reader.readAsText(file);
-            },
-            reportMeterBroken(roomId) { const room = this.state.rooms.find(r=>r.id===roomId); if(room) room.meterStatus = 'broken'; this.saveData(); this.render(); },
-            installNewMeter(roomId) {
-                const initialReading = parseInt(prompt("Enter the initial reading of the new meter:", "0"));
-                if(isNaN(initialReading)) return;
-                const room = this.state.rooms.find(r=>r.id===roomId);
-                if(room) { room.meterStatus = 'ok'; room.meterInstallationId = `m_${Date.now()}`; }
-                this.state.utilityReadings.push({ id: `ur_${Date.now()}`, roomId, date: new Date().toISOString(), reading: initialReading, meterInstallationId: room.meterInstallationId });
-                this.saveData(); this.render(); this.showToast('New meter installed successfully!');
-            },
-            generateAllRentDues() {
-                this.state.tenants.forEach(t => {
-                    const room = this.state.rooms.find(r => r.id === t.roomId);
-                    if(room) this.state.dues.push({ id: `due_${Date.now()}_${t.id}`, tenantId: t.id, amount: room.rent, date: new Date().toISOString(), type: 'rent', description: `Monthly Rent` });
+
+                    let dueDate = new Date(tenant.moveInDate);
+                    dueDate.setHours(0, 0, 0, 0);
+
+                    // Start checking from the first month AFTER the move-in date
+                    dueDate.setMonth(dueDate.getMonth() + 1);
+
+                    while (dueDate <= today) {
+                        const dueYear = dueDate.getFullYear();
+                        const dueMonth = dueDate.getMonth();
+
+                        // Check if a rent due for this month and year already exists for this tenant
+                        const alreadyExists = this.state.dues.some(due =>
+                            due.tenantId === tenant.id &&
+                            due.type === 'rent' &&
+                            new Date(due.date).getFullYear() === dueYear &&
+                            new Date(due.date).getMonth() === dueMonth
+                        );
+
+                        if (!alreadyExists) {
+                            this.state.dues.push({
+                                id: `due_${dueDate.getTime()}_${tenant.id}`,
+                                tenantId: tenant.id,
+                                amount: room.rent,
+                                date: dueDate.toISOString(),
+                                type: 'rent',
+                                description: `Monthly Rent`
+                            });
+                            generatedCount++;
+                        }
+                        
+                        // Move to the next month for the next loop iteration
+                        dueDate.setMonth(dueDate.getMonth() + 1);
+                    }
                 });
-                this.saveData(); this.render(); this.showToast('Monthly rent dues generated for all tenants.');
+
+                return generatedCount;
             },
-            generateMonthlyStatement(tenantId){
-                const tenant = this.state.tenants.find(t=>t.id===tenantId);
-                const transactions = [...this.state.dues.filter(d=>d.tenantId===tenantId), ...this.state.payments.filter(p=>p.tenantId===tenantId)].sort((a,b)=>new Date(a.date)-new Date(b.date));
-                let statementHTML = `<h2>Statement for ${tenant.name}</h2><hr>`;
-                transactions.forEach(t => { statementHTML += `<p>${new Date(t.date).toLocaleDateString()}: ${t.description || t.type} - <strong>${t.amount}</strong></p>`});
-                const win = window.open('', 'Statement'); win.document.write(statementHTML); win.document.close();
-            },
-            generateReceipt(paymentId) { const p = this.state.payments.find(p=>p.id===paymentId); const t = this.state.tenants.find(t=>t.id===p.tenantId); const win = window.open('','Receipt'); win.document.write(`<html><body style="font-family:sans-serif;padding:2rem;"><h1>Payment Receipt</h1><hr><p><strong>Received From:</strong> ${t.name}</p><p><strong>Amount:</strong> ${this.state.settings.currencySymbol}${p.amount.toLocaleString('en-IN')}</p><p><strong>Date:</strong> ${new Date(p.date).toLocaleString()}</p><p><strong>For:</strong> ${p.description || p.category}</p><hr><p>Thank you!</p></body></html>`); win.document.close(); win.print(); },
-            sendWhatsAppReminder(tenantId) { const t = this.state.tenants.find(t=>t.id===tenantId); if(!t) return; const p = t.phone.replace(/\D/g,''); const url=`https://wa.me/${p.startsWith('91')?p:'91'+p}?text=Hi ${t.name}, this is a friendly rent reminder.`; window.open(url, '_blank'); },
-            showToast(message, type = 'success') { const t=document.getElementById('toast'); t.textContent=message; t.className=`show ${type}`; setTimeout(()=>t.className=t.className.replace('show',''),3000); },
-            readFileAsBase64(file) { return new Promise(r=>{if(!file||file.size===0)return r('');const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(file)}); },
-            previewPhoto(event) { const p=document.getElementById('photo-preview'); const f=event.target.files[0]; if(f){const r=new FileReader(); r.onload=e=>{p.src=e.target.result; p.style.display='block';}; r.readAsDataURL(f);} },
+
+            generateMonthlyStatement(tenantId){const t=this.state.tenants.find(tn=>tn.id===tenantId),trs=[...this.state.dues.filter(d=>d.tenantId===tenantId),...this.state.payments.filter(p=>p.tenantId===tenantId)].sort((a,b)=>new Date(a.date)-new Date(b.date));let h=`<h2>Statement for ${t.name}</h2><hr>`;trs.forEach(tr=>{h+=`<p>${new Date(tr.date).toLocaleDateString()}: ${tr.description||tr.type} - <strong>${tr.amount}</strong></p>`});const w=window.open('','Statement');w.document.write(h);w.document.close();},
+            generateReceipt(paymentId) {const p=this.state.payments.find(pm=>pm.id===paymentId),t=this.state.tenants.find(tn=>tn.id===p.tenantId),w=window.open('','Receipt');w.document.write(`<html><body style="font-family:sans-serif;padding:2rem;"><h1>Payment Receipt</h1><hr><p><strong>Received From:</strong> ${t.name}</p><p><strong>Amount:</strong> ${this.state.settings.currencySymbol}${p.amount.toLocaleString('en-IN')}</p><p><strong>Date:</strong> ${new Date(p.date).toLocaleString()}</p><p><strong>For:</strong> ${p.description||p.category}</p><hr><p>Thank you!</p></body></html>`);w.document.close();w.print();},
+            sendWhatsAppReminder(tenantId) {const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t)return;const p=t.phone.replace(/\D/g,''),u=`https://wa.me/${p.startsWith('91')?p:'91'+p}?text=Hi ${t.name}, friendly rent reminder.`;window.open(u,'_blank');},
+            showToast(message, type = 'success') {const t=document.getElementById('toast');t.textContent=message;t.className=`show ${type}`;setTimeout(()=>t.className=t.className.replace('show',''),3000);},
+            readFileAsBase64(file) {return new Promise(r=>{if(!file||file.size===0)return r('');const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(file)});},
+            previewPhoto(event) {const p=document.getElementById('photo-preview');if(!p)return;const f=event.target.files[0];if(f){const r=new FileReader();r.onload=e=>{p.src=e.target.result;p.style.display='block';};r.readAsDataURL(f);}},
         };
         app.init();
     });
