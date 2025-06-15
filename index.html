@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- --- NEW: Google Client ID --- -->
-    <meta name="google-signin-client_id" content="460969544827-21ethacfepnho56k8j89dtaq58rj0oem.apps.googleusercontent.com">
     <title>Tenant & Rent Management System</title>
     <link rel="icon" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3crect width='100' height='100' rx='15' fill='%236366f1'/%3e%3ctext x='50' y='68' font-size='50' font-weight='bold' fill='white' text-anchor='middle'%3eTR%3c/text%3e%3c/svg%3e">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- --- NEW: Google API & Identity Scripts --- -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
     <style>
         :root {
             --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #10b981;
@@ -20,7 +21,6 @@
         html { scroll-behavior: smooth; }
         body { font-family: 'Poppins', sans-serif; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; }
 
-        /* --- NEW: Login Screen Styles --- */
         #login-screen {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; width: 100%; text-align: center;
@@ -32,9 +32,9 @@
             display: inline-flex; align-items: center; gap: 1rem; transition: background-color 0.3s;
         }
         #signin-btn:hover { background-color: #357ae8; }
+        #signin-btn[disabled] { background-color: #ccc; cursor: not-allowed; }
         #signin-btn svg { width: 24px; height: 24px; background: white; border-radius: 50%; padding: 2px; }
 
-        /* --- NEW: Hide app container by default --- */
         #app-container { display: none; height: 100vh; }
         #app-container.visible { display: flex; }
 
@@ -45,7 +45,6 @@
         .nav-menu a { display: flex; align-items: center; padding: 0.9rem 1.5rem; margin-bottom: 0.5rem; border-radius: 8px; color: var(--text-light); text-decoration: none; font-weight: 500; transition: background-color 0.2s, color 0.2s; cursor: pointer; }
         .nav-menu a:hover { background-color: #f3f4f6; color: var(--primary-color); }
         .nav-menu a.active { background-color: var(--primary-color); color: white; box-shadow: var(--shadow); }
-        /* --- NEW: User Profile & Sign Out Styles --- */
         .user-profile { display: flex; align-items: center; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); }
         .user-profile img { width: 40px; height: 40px; border-radius: 50%; }
         .user-profile div { line-height: 1.2; }
@@ -112,7 +111,7 @@
             .logo { margin-bottom: 0; }
             .nav-menu { display: flex; gap: 0.5rem; flex-grow: 0; }
             .nav-menu span { display: none; }
-            .user-profile { display: none; } /* Hide profile on mobile nav for simplicity */
+            .user-profile { display: none; }
             .detail-view-header { flex-direction: column; align-items: center; text-align: center; }
             .section-header, .section-header .header-actions { justify-content: center; }
         }
@@ -120,20 +119,18 @@
 </head>
 <body>
 
-    <!-- --- NEW: Login Screen --- -->
     <div id="login-screen">
         <div class="login-box">
             <h1 class="logo" style="margin-bottom: 1rem;">Mishra Ji</h1>
             <p style="color: var(--text-light); margin-bottom: 2rem;">Tenant & Rent Management System</p>
-            <button id="signin-btn">
+            <button id="signin-btn" disabled>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.012 35.841 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
                 Sign in with Google
             </button>
-            <p id="auth-status" style="margin-top: 1rem; color: var(--text-light);"></p>
+            <p id="auth-status" style="margin-top: 1rem; color: var(--text-light);">Initializing...</p>
         </div>
     </div>
 
-    <!-- --- NEW: App Container (hidden until login) --- -->
     <div id="app-container">
         <aside class="sidebar">
             <div>
@@ -145,7 +142,6 @@
                     <a data-action="navigate" data-view="settings" class="nav-link"><span>Settings</span></a>
                 </nav>
             </div>
-            <!-- --- NEW: User Profile & Sign Out --- -->
             <div id="user-profile-container" class="user-profile" style="display: none;">
                 <img id="user-img" src="" alt="User">
                 <div>
@@ -160,19 +156,19 @@
     <div id="modal-container"></div>
     <div id="toast"></div>
 
-    <!-- --- NEW: Google API Script --- -->
-    <script src="https://apis.google.com/js/api.js"></script>
-
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+// Wrap the entire script in a function that waits for the window to load.
+// This ensures gapi and google objects are available from the async scripts.
+window.onload = () => {
     const app = {
-        // --- NEW: Google API Configuration ---
+        // --- NEW: GIS and GAPI Config ---
         CLIENT_ID: '460969544827-21ethacfepnho56k8j89dtaq58rj0oem.apps.googleusercontent.com',
         API_KEY: 'AIzaSyDJ3soSuJgHcbD8beauFPWd06wJWqws3ps',
         SCOPES: 'https://www.googleapis.com/auth/drive.file',
         DRIVE_FILE_NAME: 'trms_data.json',
-        driveFileId: null, // To store the ID of our data file on Google Drive
-        isSaving: false, // Flag to prevent concurrent saves
+        driveFileId: null,
+        isSaving: false,
+        tokenClient: null,
 
         state: {
             rooms: [], tenants: [], dues: [], payments: [], utilityReadings: [],
@@ -180,74 +176,92 @@ document.addEventListener('DOMContentLoaded', () => {
             currentView: 'dashboard', detailViewId: null
         },
 
-        // --- MODIFIED: init() is now the Google Auth entry point ---
+        // --- REWRITTEN: Authentication Flow ---
         init() {
-            gapi.load('client:auth2', this.initClient.bind(this));
-            document.getElementById('signin-btn').addEventListener('click', () => gapi.auth2.getAuthInstance().signIn());
-            document.getElementById('signout-btn').addEventListener('click', () => gapi.auth2.getAuthInstance().signOut());
-        },
+            // 1. Initialize GAPI client for Google Drive API calls
+            gapi.load('client', this.initializeGapiClient.bind(this));
 
-        // --- NEW: Initialize Google API Client ---
-        initClient() {
-            const status = document.getElementById('auth-status');
-            status.textContent = 'Initializing...';
-            gapi.client.init({
-                apiKey: this.API_KEY,
-                clientId: this.CLIENT_ID,
+            // 2. Initialize GIS client for authentication
+            this.tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: this.CLIENT_ID,
                 scope: this.SCOPES,
-                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-            }).then(() => {
-                status.textContent = 'Ready. Please sign in.';
-                const authInstance = gapi.auth2.getAuthInstance();
-                authInstance.isSignedIn.listen(this.updateSigninStatus.bind(this));
-                this.updateSigninStatus(authInstance.isSignedIn.get());
-            }, (error) => {
-                status.textContent = 'Error initializing client.';
-                this.showToast('Error initializing Google Client: ' + JSON.stringify(error), 'error');
+                callback: this.handleAuthResponse.bind(this), // Main function after sign-in
             });
+
+            // 3. Add listeners to buttons
+            document.getElementById('signin-btn').addEventListener('click', () => this.tokenClient.requestAccessToken({prompt: 'consent'}));
+            document.getElementById('signout-btn').addEventListener('click', this.signOut.bind(this));
         },
 
-        // --- NEW: Handle Sign-in State Changes ---
-        async updateSigninStatus(isSignedIn) {
-            const loginScreen = document.getElementById('login-screen');
-            const appContainer = document.getElementById('app-container');
-            const authStatus = document.getElementById('auth-status');
+        async initializeGapiClient() {
+            await gapi.client.init({
+                apiKey: this.API_KEY,
+                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+            });
+            // Enable the sign-in button once the API client is ready
+            document.getElementById('signin-btn').disabled = false;
+            document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
+        },
 
-            if (isSignedIn) {
-                authStatus.textContent = 'Loading data...';
-                loginScreen.style.display = 'none';
-                appContainer.classList.add('visible');
-                this.updateUserProfile();
-                await this.loadData(); // Load data from Drive
-                this.startAppLogic();  // Start the rest of the application
-            } else {
-                loginScreen.style.display = 'flex';
-                appContainer.classList.remove('visible');
-                authStatus.textContent = 'Please sign in to continue.';
-                document.getElementById('user-profile-container').style.display = 'none';
+        async handleAuthResponse(response) {
+            const authStatus = document.getElementById('auth-status');
+            if (response.error) {
+                authStatus.textContent = 'Authentication error. Please try again.';
+                this.showToast(`Error: ${response.error}`, 'error');
+                return;
+            }
+
+            // A token is received, so the user is signed in.
+            authStatus.textContent = 'Loading data...';
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-container').classList.add('visible');
+            
+            await this.updateUserProfile();
+            await this.loadData();
+            this.startAppLogic();
+        },
+
+        signOut() {
+            const token = gapi.client.getToken();
+            if (token !== null) {
+                google.accounts.oauth2.revoke(token.access_token, () => {
+                    gapi.client.setToken('');
+                    this.driveFileId = null; // Reset file ID
+                    // Reset UI
+                    document.getElementById('login-screen').style.display = 'flex';
+                    document.getElementById('app-container').classList.remove('visible');
+                    document.getElementById('auth-status').textContent = 'You have been signed out.';
+                    this.showToast('Signed out successfully.');
+                });
             }
         },
 
-        // --- NEW: Display User Info in Sidebar ---
-        updateUserProfile() {
-            const user = gapi.auth2.getAuthInstance().currentUser.get().getBasicProfile();
-            document.getElementById('user-name').textContent = user.getName();
-            document.getElementById('user-img').src = user.getImageUrl();
-            document.getElementById('user-profile-container').style.display = 'flex';
+        async updateUserProfile() {
+            try {
+                const response = await gapi.client.request({
+                    path: 'https://www.googleapis.com/oauth2/v3/userinfo'
+                });
+                const user = response.result;
+                document.getElementById('user-name').textContent = user.name;
+                document.getElementById('user-img').src = user.picture;
+                document.getElementById('user-profile-container').style.display = 'flex';
+            } catch (e) {
+                console.error("Could not fetch user profile", e);
+                document.getElementById('user-name').textContent = 'User';
+                document.getElementById('user-profile-container').style.display = 'flex';
+            }
         },
         
-        // --- NEW: Method to start the app after login/data load ---
         startAppLogic() {
             const duesGenerated = this.generateMissingRentDues();
             if (duesGenerated > 0) {
-                this.saveData(); // Save if new dues were generated
+                this.saveData();
                 this.showToast(`${duesGenerated} new rent due(s) generated.`);
             }
             this.addEventListeners();
             this.navigateTo('dashboard');
         },
 
-        // --- MODIFIED: Load data from Google Drive ---
         async loadData() {
             this.showToast("Loading data from Google Drive...");
             try {
@@ -268,8 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.state.settings = { ...this.state.settings, ...loadedState.settings };
                     this.showToast("Data loaded successfully!", "success");
                 } else {
-                    this.showToast("No existing data file found. Starting fresh.", "success");
-                    // No file found, will save a new one on first change.
+                    this.showToast("No data file found. Starting fresh.", "success");
                 }
             } catch (e) {
                 console.error("Error loading data from Drive:", e);
@@ -277,9 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        // --- MODIFIED: Save data to Google Drive ---
         async saveData() {
-            if (this.isSaving) return; // Prevent multiple saves at once
+            if (this.isSaving) return;
             this.isSaving = true;
 
             const dataToSave = JSON.stringify(this.state);
@@ -288,20 +300,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const form = new FormData();
 
             try {
-                if (this.driveFileId) { // File exists, update it
+                if (this.driveFileId) {
                     form.append('metadata', new Blob([JSON.stringify({ mimeType: 'application/json' })], { type: 'application/json' }));
                     form.append('file', blob);
-
                     await gapi.client.request({
                         path: `/upload/drive/v3/files/${this.driveFileId}`,
                         method: 'PATCH',
                         params: { uploadType: 'multipart' },
                         body: form
                     });
-                } else { // File does not exist, create it
+                } else {
                     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
                     form.append('file', blob);
-
                     const response = await gapi.client.request({
                         path: '/upload/drive/v3/files',
                         method: 'POST',
@@ -322,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         render() { const{currentView:v,detailViewId:id}=this.state;const m=document.getElementById('main-content-area');const k=v.includes('-')?v.split('-').map((p,i)=>i>0?p.charAt(0).toUpperCase()+p.slice(1):p).join(''):v;const f=this.templates[k];if(f)m.innerHTML=f.call(this,id);else m.innerHTML=`<p>Error: View '${v}' not found.</p>`;document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active',l.dataset.view===v.split('-')[0]));},
         addEventListeners() { document.body.addEventListener('click',e=>{const t=e.target.closest('[data-action]');if(!t)return;e.preventDefault();const{action:a,view:v,id:i,modalType:m,itemType:it}=t.dataset;const A={'navigate':()=>this.navigateTo(v),'navigate-detail':()=>this.navigateTo(v,i),'show-modal':()=>this.showModal(m,i),'close-modal':()=>this.closeModal(),'delete-item':()=>{if(confirm(`Delete this ${it.replace('-',' ')}? This cannot be undone.`))this.deleteItem(it,i);},'generate-receipt':()=>this.generateReceipt(i),'generate-statement':()=>this.generateMonthlyStatement(i),'report-meter-broken':()=>{if(confirm('Report meter as broken?'))this.reportMeterBroken(i);},'install-new-meter':()=>this.installNewMeter(i),'share-receipt-whatsapp':()=>this.shareReceiptWhatsApp(i),'share-dues-whatsapp':()=>this.shareDuesWhatsApp(i),};if(A[a])A[a]();});document.body.addEventListener('submit',e=>{e.preventDefault();const h={'room-form':f=>this.handleRoomSubmit(f),'tenant-form':f=>this.handleTenantSubmit(f),'settings-form':f=>this.handleSettingsSubmit(f),'utility-form':f=>this.handleUtilitySubmit(f),'payment-form':f=>this.handlePaymentSubmit(f),'service-charge-form':f=>this.handleServiceChargeSubmit(f),'edit-room-form':f=>this.handleEditRoomSubmit(f),'edit-tenant-form':f=>this.handleEditTenantSubmit(f),};if(h[e.target.id])h[e.target.id](e.target);});document.body.addEventListener('change',e=>{if(e.target.matches('input[type="file"]')&&e.target.id!=='import-file-input')this.previewPhoto(e);});},
         
-        // --- TEMPLATES (UNCHANGED, but removed export/import as Drive is now the source) ---
+        // --- TEMPLATES (Unchanged) ---
         templates: {
             dashboard() { const {dues,payments,tenants,rooms,settings}=this.state;const n=new Date(),m=n.getMonth();const mI=payments.filter(p=>new Date(p.date).getMonth()===m).reduce((s,p)=>s+p.amount,0);const o=rooms.length>0?(tenants.length/rooms.length)*100:0;const tD=tenants.reduce((total,t)=>{const tdues=dues.filter(d=>d.tenantId===t.id).reduce((s,d)=>s+d.amount,0);const tpmts=payments.filter(p=>p.tenantId===t.id).reduce((s,p)=>s+p.amount,0);return total+Math.max(0,tdues-tpmts)},0);const u=tenants.filter(t=>!t.isVerified);let aH=u.map(t=>`<div class="alert-item warning" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">${t.name}'s verification is pending. <span>View →</span></div>`).join('');return `<div id="dashboard" class="view active"><div class="section-header"><h2 class="section-title">Dashboard</h2></div><div class="metric-boxes grid-container"><div class="metric-box"><h3>This Month's Income</h3><div class="metric-value">${settings.currencySymbol}${mI.toLocaleString('en-IN')}</div></div><div class="metric-box"><h3>Total Pending Dues</h3><div class="metric-value">${settings.currencySymbol}${tD.toLocaleString('en-IN')}</div></div><div class="metric-box"><h3>Occupancy</h3><div class="metric-value">${o.toFixed(0)}%</div></div><div class="metric-box"><h3>Unverified Tenants</h3><div class="metric-value">${u.length}</div></div></div><div class="detail-grid" style="margin-top: 2rem;"><div class="dashboard-section"><h3>System Alerts</h3><div id="alert-list">${aH||'<p>No system alerts.</p>'}</div></div><div class="dashboard-section"><h3>Quick Actions</h3><button class="action-btn btn-primary" style="width: 100%; margin-bottom: 1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width: 100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button></div></div></div>`; },
             rooms() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Rooms</h2><button class="action-btn btn-primary" data-action="show-modal" data-modal-type="addRoom">Add Room</button></div><div class="grid-container">${this.state.rooms.map(r=>`<div class="data-card" data-action="navigate-detail" data-view="room-detail" data-id="${r.id}"><div class="card-photo" style="background-image:url(${r.photo||''})"><span class="card-status status-${r.status}">${r.status}</span></div><div class="card-content"><h3 class="card-title">Room ${r.number}</h3><p class="card-info">Rent: ${this.state.settings.currencySymbol}${r.rent}/month</p><p class="card-info">Tenant: ${this.state.tenants.find(t=>t.id===r.tenantId)?.name||'<i>Vacant</i>'}</p></div></div>`).join('')||'<p>No rooms found.</p>'}</div></div>`;},
@@ -331,9 +341,8 @@ document.addEventListener('DOMContentLoaded', () => {
             roomDetail(id) { const r = this.state.rooms.find(rm => rm.id === id); if (!r) return `<p>Room not found.</p>`; const t = this.state.tenants.find(tn => tn.id === r.tenantId); const rd = this.state.utilityReadings.filter(ur => ur.roomId === id && ur.meterInstallationId === r.meterInstallationId).sort((a,b) => new Date(b.date) - new Date(a.date)); let m = (r.meterStatus === 'broken') ? `<button class="action-btn btn-warning" data-action="install-new-meter" data-id="${id}">Install New Meter</button>` : `<button class="action-btn btn-danger" data-action="report-meter-broken" data-id="${id}">Report Meter Broken</button>`; return `<div class="view active"><div class="section-header"><div class="header-actions"><button class="action-btn btn-cancel" data-action="navigate" data-view="rooms">← Back</button><button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editRoom" data-id="${id}">Edit Details</button></div><button class="action-btn btn-danger" data-action="delete-item" data-item-type="room" data-id="${id}">Delete Room</button></div><div class="detail-view-header"><div class="detail-photo" style="background-image: url(${r.photo || ''})"></div><div class="detail-info"><h2>Room ${r.number}</h2><p>Status: ${r.status}</p><p>Tenant: ${t ? t.name : 'Vacant'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Room Information</h4><ul><li><span>Monthly Rent</span><strong>${this.state.settings.currencySymbol}${r.rent}</strong></li><li><span>Meter Status</span><strong>${r.meterStatus}</strong></li></ul></div><div class="detail-card"><h4>Utility Readings (Current Meter)</h4><div>${rd.map(r => `<div class="payment-history-item"><p><strong>${new Date(r.date).toLocaleDateString()}</strong> - Reading: ${r.reading} units</p></div>`).join('') || '<p>No readings for this meter.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Meter Management</h4>${m}</div><div class="detail-card"><h4>Add Utility Reading</h4><form id="utility-form" data-room-id="${id}"><div class="form-group"><label>New Meter Reading</label><input type="number" id="meter-reading" required ${r.meterStatus === 'broken' ? 'disabled' : ''}></div><button type="submit" class="action-btn btn-secondary" style="width:100%" ${r.meterStatus === 'broken' ? 'disabled' : ''}>Generate Bill</button></form></div></div></div></div>`; },
             tenantDetail(id) { const t=this.state.tenants.find(tn=>tn.id===id);if(!t)return`<p>Tenant not found.</p>`;const r=this.state.rooms.find(rm=>rm.id===t.roomId),d=this.state.dues.filter(du=>du.tenantId===id),p=this.state.payments.filter(pm=>pm.tenantId===id),trs=[...d.map(du=>({...du,isDue:true})),...p.map(pm=>({...pm,isPayment:true}))].sort((a,b)=>new Date(b.date)-new Date(a.date)),b=d.reduce((s,du)=>s+du.amount,0)-p.reduce((s,pm)=>s+pm.amount,0);const wS=`<svg viewBox="0 0 24 24"><path d="M16.75 13.96c.25.13.42.2.46.28.05.08.05.38-.02.75-.07.37-.52.68-.97.75-.45.07-1.03.22-1.57-.12-.54-.33-1.12-.78-1.8-1.38-.95-.83-1.63-1.85-1.7-2.03-.07-.18-.54-1.08.2-1.33.6-.2.95-.12 1.18.06.23.18.35.45.4.53.05.08.08.13.03.28-.05.15-.12.28-.23.4-.1.13-.18.18-.3.28-.13.1-.2.15-.28.25s-.12.18-.03.3.4.65.78 1.03c.53.5 1.12.83 1.33.9.2.08.33.05.43-.03.1-.08.43-.5.53-.65.1-.15.18-.13.28-.08zM12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>`;return`<div class="view active"><div class="section-header"><div class="header-actions"><button class="action-btn btn-cancel" data-action="navigate" data-view="tenants">← Back</button><button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editTenant" data-id="${id}">Edit</button></div><div class="header-actions"><button class="action-btn btn-secondary" data-action="generate-statement" data-id="${id}">Statement</button><button class="action-btn btn-danger" data-action="delete-item" data-item-type="tenant" data-id="${id}">Delete</button></div></div><div class="detail-view-header"><div class="detail-photo" style="background-image:url(${t.photo||''})"></div><div class="detail-info"><h2>${t.name}</h2><p>Room ${r?.number||'N/A'}</p><p>${t.isVerified?'✔ Verified':'✖ Not Verified'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Transactions</h4>${b>0?`<div class="alert-item danger">Pending Balance: <strong>${this.state.settings.currencySymbol}${b.toLocaleString('en-IN')}</strong></div>`:`<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared.</div>`}<div id="transaction-list">${trs.map(tr=>`<div class="transaction-item ${tr.isDue?'due':'payment'}"><div><p><strong>${tr.isDue?'-':'+'}${this.state.settings.currencySymbol}${tr.amount.toLocaleString('en-IN')}</strong> - ${tr.description||tr.category||tr.type}</p><p style="font-size:0.9rem;color:var(--text-light)">${new Date(tr.date).toLocaleDateString()}</p></div>${tr.isPayment?`<div class="transaction-actions"><button class="action-btn btn-cancel" style="padding:0.5rem 0.8rem;" data-action="generate-receipt" data-id="${tr.id}">Receipt</button><button class="action-btn btn-whatsapp btn-icon" data-action="share-receipt-whatsapp" data-id="${tr.id}" title="Share on WhatsApp">${wS}</button></div>`:''}</div>`).join('')||'<p>No transactions.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Contact & Info</h4><ul><li><span>Phone</span><strong>${t.phone}</strong></li><li><span>Move-in Date</span><strong>${new Date(t.moveInDate).toLocaleDateString()}</strong></li></ul></div><div class="detail-card"><h4>Communication</h4><button class="action-btn btn-whatsapp" style="width:100%" data-action="share-dues-whatsapp" data-id="${id}">Send Dues Reminder (WhatsApp)</button></div><div class="detail-card"><h4>Add Payment</h4><form id="payment-form" data-tenant-id="${id}"><div class="form-group"><label for="payment-amount">Amount Paid</label><input type="number" id="payment-amount" required></div><div class="form-group"><label for="payment-category">Payment For</label><select id="payment-category" required><option value="Rent">Rent</option><option value="Electricity">Electricity</option><option value="Service Charge">Service Charge</option><option value="Other">Other</option></select></div><div class="form-group"><label for="payment-description">Description/Notes</label><input type="text" id="payment-description" placeholder="e.g., Rent for May"></div><button type="submit" class="action-btn btn-secondary" style="width:100%">Record Payment</button></form></div><div class="detail-card"><h4>Add Service Charge</h4><form id="service-charge-form" data-tenant-id="${id}"><div class="form-group"><label>Charge Description</label><input type="text" id="charge-desc" placeholder="e.g., Late Fee, Repair" required></div><div class="form-group"><label>Amount</label><input type="number" id="charge-amount" required></div><button type="submit" class="action-btn btn-warning" style="width:100%">Add Charge</button></form></div></div></div></div>`; },
         },
-        // --- ALL OTHER METHODS (showModal, handle...Submit, etc.) ARE LARGELY UNCHANGED ---
-        // --- EXCEPT saveData() IS CALLED INSTEAD OF localStorage.setItem() ---
-
+        
+        // --- Core Application Logic (Unchanged) ---
         showModal(type, id = null) { const mC=document.getElementById('modal-container');let mH='';if(type==='addRoom'){mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;}else if(type==='editRoom'){const r=this.state.rooms.find(rm=>rm.id===id);if(!r)return;mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}"></div><div class="form-group"><label>Room Photo (leave blank to keep existing)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'};"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;}else if(type==='addTenant'){const aR=this.state.rooms.filter(r=>r.status==='available');mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;}else if(type==='editTenant'){const t=this.state.tenants.find(tn=>tn.id===id);if(!t)return;const cR=this.state.rooms.find(r=>r.id===t.roomId),aR=this.state.rooms.filter(r=>r.status==='available'),rO=[cR,...aR].filter(Boolean),uRO=[...new Map(rO.map(i=>[i['id'],i])).values()];mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (leave blank to keep existing)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'};"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;} mC.innerHTML=mH; },
         closeModal() { document.getElementById('modal-container').innerHTML = ''; },
         async handleRoomSubmit(f) { const d=new FormData(f);this.state.rooms.push({id:`room_${Date.now()}`,number:d.get('number'),rent:parseFloat(d.get('rent')),status:'available',tenantId:null,photo:await this.readFileAsBase64(d.get('photo')),meterStatus:'ok',meterInstallationId:`m_${Date.now()}`});this.saveData();this.closeModal();this.render();this.showToast('Room added!');},
@@ -357,8 +366,10 @@ document.addEventListener('DOMContentLoaded', () => {
         readFileAsBase64(file) {return new Promise(r=>{if(!file||file.size===0)return r('');const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(file)});},
         previewPhoto(e) {const p=document.getElementById('photo-preview');if(!p)return;const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>{p.src=ev.target.result;p.style.display='block';};r.readAsDataURL(f);}},
     };
+
+    // Start the application
     app.init();
-});
+};
 </script>
 
 </body>
