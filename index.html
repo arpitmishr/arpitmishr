@@ -344,7 +344,68 @@ window.onload = () => {
         
         // --- TEMPLATES (with Role-Based UI) ---
         templates: {
-            dashboard() { const {dues,payments,tenants,rooms,settings}=this.state;const n=new Date(),m=n.getMonth();const mI=(payments||[]).filter(p=>new Date(p.date).getMonth()===m).reduce((s,p)=>s+p.amount,0);const o=(rooms||[]).length>0?((tenants||[]).length/(rooms||[]).length)*100:0;const tD=(tenants||[]).reduce((total,t)=>{const tdues=(dues||[]).filter(d=>d.tenantId===t.id).reduce((s,d)=>s+d.amount,0);const tpmts=(payments||[]).filter(p=>p.tenantId===t.id).reduce((s,p)=>s+p.amount,0);return total+Math.max(0,tdues-tpmts)},0);const u=(tenants||[]).filter(t=>!t.isVerified);let aH=u.map(t=>`<div class="alert-item warning" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">${t.name}'s verification is pending. <span>View →</span></div>`).join('');const quickActions=this.isOwner()?`<button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>`:`<p style="text-align:center;color:var(--text-light)"><i>View-only mode.</i></p>`;return `<div id="dashboard" class="view active"><div class="section-header"><h2 class="section-title">Dashboard</h2></div><div class="metric-boxes grid-container"><div class="metric-box"><h3>This Month's Income</h3><div class="metric-value">${settings.currencySymbol}${mI.toLocaleString('en-IN')}</div></div><div class="metric-box"><h3>Total Pending Dues</h3><div class="metric-value">${settings.currencySymbol}${tD.toLocaleString('en-IN')}</div></div><div class="metric-box"><h3>Occupancy</h3><div class="metric-value">${o.toFixed(0)}%</div></div><div class="metric-box"><h3>Unverified Tenants</h3><div class="metric-value">${u.length}</div></div></div><div class="detail-grid" style="margin-top:2rem;"><div class="dashboard-section"><h3>System Alerts</h3><div id="alert-list">${aH||'<p>No system alerts.</p>'}</div></div><div class="dashboard-section"><h3>Quick Actions</h3>${quickActions}</div></div></div>`; },
+            dashboard() {
+                const { dues, payments, tenants, rooms, settings } = this.state;
+                const n = new Date(), m = n.getMonth();
+                const mI = (payments || []).filter(p => new Date(p.date).getMonth() === m).reduce((s, p) => s + p.amount, 0);
+                const o = (rooms || []).length > 0 ? ((tenants || []).length / (rooms || []).length) * 100 : 0;
+                const tD = (tenants || []).reduce((total, t) => {
+                    const tdues = (dues || []).filter(d => d.tenantId === t.id).reduce((s, d) => s + d.amount, 0);
+                    const tpmts = (payments || []).filter(p => p.tenantId === t.id).reduce((s, p) => s + p.amount, 0);
+                    return total + Math.max(0, tdues - tpmts)
+                }, 0);
+                const u = (tenants || []).filter(t => !t.isVerified);
+                let aH = u.map(t => `<div class="alert-item warning" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">${t.name}'s verification is pending. <span>View →</span></div>`).join('');
+                
+                // --- NEW: Calculate tenant balances and create the new section ---
+                const tenantsWithDues = (tenants || [])
+                    .map(tenant => {
+                        const totalDues = (dues || []).filter(d => d.tenantId === tenant.id).reduce((sum, d) => sum + d.amount, 0);
+                        const totalPayments = (payments || []).filter(p => p.tenantId === tenant.id).reduce((sum, p) => sum + p.amount, 0);
+                        const balance = totalDues - totalPayments;
+                        return { ...tenant, balance };
+                    })
+                    .filter(tenant => tenant.balance > 0)
+                    .sort((a, b) => b.balance - a.balance);
+
+                const tenantDuesSection = tenantsWithDues.length > 0 ? `
+                    <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                        <h3>Pending Dues by Tenant</h3>
+                        <div id="tenant-dues-list">
+                            ${tenantsWithDues.map(t => `
+                                <div class="alert-item danger" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">
+                                    <span>${t.name}</span>
+                                    <strong>${settings.currencySymbol}${t.balance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : '';
+                // --- END of new code ---
+
+                const quickActions = this.isOwner() ? `<button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>` : `<p style="text-align:center;color:var(--text-light)"><i>View-only mode.</i></p>`;
+                
+                return `<div id="dashboard" class="view active">
+                    <div class="section-header"><h2 class="section-title">Dashboard</h2></div>
+                    <div class="metric-boxes grid-container">
+                        <div class="metric-box"><h3>This Month's Income</h3><div class="metric-value">${settings.currencySymbol}${mI.toLocaleString('en-IN')}</div></div>
+                        <div class="metric-box"><h3>Total Pending Dues</h3><div class="metric-value">${settings.currencySymbol}${tD.toLocaleString('en-IN')}</div></div>
+                        <div class="metric-box"><h3>Occupancy</h3><div class="metric-value">${o.toFixed(0)}%</div></div>
+                        <div class="metric-box"><h3>Unverified Tenants</h3><div class="metric-value">${u.length}</div></div>
+                    </div>
+                    <div class="detail-grid" style="margin-top:2rem;">
+                        <div class="dashboard-section">
+                            <h3>System Alerts</h3>
+                            <div id="alert-list">${aH || '<p>No system alerts.</p>'}</div>
+                            ${tenantDuesSection}
+                        </div>
+                        <div class="dashboard-section">
+                            <h3>Quick Actions</h3>
+                            ${quickActions}
+                        </div>
+                    </div>
+                </div>`;
+            },
             rooms() { const addRoomBtn=this.isOwner()?`<button class="action-btn btn-primary" data-action="show-modal" data-modal-type="addRoom">Add Room</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Rooms</h2>${addRoomBtn}</div><div class="grid-container">${(this.state.rooms||[]).map(r=>`<div class="data-card" data-action="navigate-detail" data-view="room-detail" data-id="${r.id}"><div class="card-photo" style="background-image:url(${r.photo||''})"><span class="card-status status-${r.status}">${r.status}</span></div><div class="card-content"><h3 class="card-title">Room ${r.number}</h3><p class="card-info">Rent: ${this.state.settings.currencySymbol}${r.rent}/month</p><p class="card-info">Tenant: ${(this.state.tenants||[]).find(t=>t.id===r.tenantId)?.name||'<i>Vacant</i>'}</p></div></div>`).join('')||'<p>No rooms found.</p>'}</div></div>`;},
             tenants() { const addTenantBtn=this.isOwner()?`<button class="action-btn btn-secondary" data-action="show-modal" data-modal-type="addTenant">Add Tenant</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Tenants</h2>${addTenantBtn}</div><div class="grid-container">${(this.state.tenants||[]).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"><span class="card-status" style="color:${t.isVerified?'green':'red'}">${t.isVerified?'Verified':'Not Verified'}</span></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Phone: ${t.phone}</p></div></div>`).join('')||'<p>No tenants found.</p>'}</div></div>`;},
             settings() { const o=this.isOwner();const d=o?`<div class="detail-card" style="max-width:500px;margin-top:2rem;"><h4>Danger Zone</h4><p style="margin-bottom:1rem;color:var(--text-light)">Permanently delete all data.</p><button class="action-btn btn-danger" data-action="delete-item" data-item-type="all-data">Delete All Data</button></div>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Settings</h2></div><div class="detail-card" style="max-width:500px;"><form id="settings-form"><h4>General Settings</h4><div class="form-group"><label>Electricity Rate (per unit)</label><input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}" ${!o?'readonly':''}></div><div class="form-group"><label>Currency Symbol</label><input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}" ${!o?'readonly':''}></div><div class="form-actions">${o?'<button type="submit" class="action-btn btn-primary">Save Settings</button>':''}</div></form></div>${d}</div>`;},
@@ -370,7 +431,7 @@ window.onload = () => {
         generateMonthlyStatement(tId){const t=this.state.tenants.find(tn=>tn.id===tId),trs=[...(this.state.dues||[]).filter(d=>d.tenantId===tId),...(this.state.payments||[]).filter(p=>p.tenantId===tId)].sort((a,b)=>new Date(a.date)-new Date(b.date));let h=`<h2>Statement for ${t.name}</h2><hr>`;trs.forEach(tr=>{h+=`<p>${new Date(tr.date).toLocaleDateString()}: ${tr.description||tr.type} - <strong>${tr.amount}</strong></p>`});const w=window.open('','Statement');w.document.write(h);w.document.close();},
         generateReceipt(pId) {const p=this.state.payments.find(pm=>pm.id===pId),t=this.state.tenants.find(tn=>tn.id===p.tenantId),w=window.open('','Receipt');w.document.write(`<html><body style="font-family:sans-serif;padding:2rem;"><h1>Payment Receipt</h1><hr><p><strong>Received From:</strong> ${t.name}</p><p><strong>Amount:</strong> ${this.state.settings.currencySymbol}${p.amount.toLocaleString('en-IN')}</p><p><strong>Date:</strong> ${new Date(p.date).toLocaleString()}</p><p><strong>For:</strong> ${p.description||p.category}</p><hr><p>Thank you!</p></body></html>`);w.document.close();w.print();},
         shareReceiptWhatsApp(paymentId) { const p=this.state.payments.find(pm=>pm.id===paymentId);if(!p)return;const t=this.state.tenants.find(tn=>tn.id===p.tenantId);if(!t||!t.phone){this.showToast('Tenant phone not found.','error');return;}const{currencySymbol:cS}=this.state.settings;const m=`*Payment Confirmation*\n\nHi ${t.name},\n\nWe have received your payment.\n\n*Details:*\nAmount: ${cS}${p.amount.toLocaleString('en-IN')}\nDate: ${new Date(p.date).toLocaleDateString()}\nFor: ${p.description||p.category}\n\nThank you.`;this.openWhatsApp(t.phone,m);},
-        shareDuesWhatsApp(tenantId) { const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t||!t.phone){this.showToast('Tenant phone not found.','error');return;}const{currencySymbol:cS,electricityRate:eR}=this.state.settings;const aD=(this.state.dues||[]).filter(d=>d.tenantId===tenantId),aP=(this.state.payments||[]).filter(p=>p.tenantId===tenantId);const tDA=aD.reduce((s,d)=>s+d.amount,0),tPA=aP.reduce((s,p)=>s+p.amount,0);const b=tDA-tPA;if(b<=0){this.showToast('No pending dues.','success');return;}const eL=[],hL=[];aD.forEach(d=>{let e='',h='';if(d.type==='rent'){e=`Rent / किराया: ${cS}${d.amount}`;h=`किराया: ${cS}${d.amount}`;}else if(d.type==='utility'){const uM=d.description.match(/(\d+(\.\d+)?)\s*units/),u=uM?uM[1]:'N/A';e=`Electricity / बिजली (${u} units @ ${cS}${eR}/unit): ${cS}${d.amount}`;h=`बिजली (${u} यूनिट @ ${cS}${eR}/यूनिट): ${cS}${d.amount}`;}else if(d.type==='service'){e=`${d.description}: ${cS}${d.amount}`;h=`${d.description}: ${cS}${d.amount}`;}if(!aP.some(p=>p.description.includes(d.description))) { eL.push(e);hL.push(h);}});const eB="```\n"+eL.join('\n')+`\n---------------------\nTOTAL: ${cS}${b.toLocaleString('en-IN')}`+"\n```";const hB="```\n"+hL.join('\n')+`\n---------------------\nकुल: ${cS}${b.toLocaleString('en-IN')}`+"\n```";const fM=`Hi ${t.name},\n\nHere is a summary of your outstanding dues.\n\n*Outstanding Dues*\n${eB}\n\n---\n\nनमस्ते ${t.name},\n\nयह आपके बकाया शुल्कों का विवरण है।\n\n*देय राशि*\n${hB}\n\nPlease clear the balance at your earliest convenience.\nकृपया जल्द से जल्द शेष राशि का भुगतान करें।\n\nThank you / धन्यवाद।`;this.openWhatsApp(t.phone,fM);},
+        shareDuesWhatsApp(tenantId) { const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t||!t.phone){this.showToast('Tenant phone not found.','error');return;}const{currencySymbol:cS,electricityRate:eR}=this.state.settings;const aD=(this.state.dues||[]).filter(d=>d.tenantId===tenantId),aP=(this.state.payments||[]).filter(p=>p.tenantId===tenantId);const tDA=aD.reduce((s,d)=>s+d.amount,0),tPA=aP.reduce((s,p=>s+p.amount,0);const b=tDA-tPA;if(b<=0){this.showToast('No pending dues.','success');return;}const eL=[],hL=[];aD.forEach(d=>{let e='',h='';if(d.type==='rent'){e=`Rent / किराया: ${cS}${d.amount}`;h=`किराया: ${cS}${d.amount}`;}else if(d.type==='utility'){const uM=d.description.match(/(\d+(\.\d+)?)\s*units/),u=uM?uM[1]:'N/A';e=`Electricity / बिजली (${u} units @ ${cS}${eR}/unit): ${cS}${d.amount}`;h=`बिजली (${u} यूनिट @ ${cS}${eR}/यूनिट): ${cS}${d.amount}`;}else if(d.type==='service'){e=`${d.description}: ${cS}${d.amount}`;h=`${d.description}: ${cS}${d.amount}`;}if(!aP.some(p=>p.description.includes(d.description))) { eL.push(e);hL.push(h);}});const eB="```\n"+eL.join('\n')+`\n---------------------\nTOTAL: ${cS}${b.toLocaleString('en-IN')}`+"\n```";const hB="```\n"+hL.join('\n')+`\n---------------------\nकुल: ${cS}${b.toLocaleString('en-IN')}`+"\n```";const fM=`Hi ${t.name},\n\nHere is a summary of your outstanding dues.\n\n*Outstanding Dues*\n${eB}\n\n---\n\nनमस्ते ${t.name},\n\nयह आपके बकाया शुल्कों का विवरण है।\n\n*देय राशि*\n${hB}\n\nPlease clear the balance at your earliest convenience.\nकृपया जल्द से जल्द शेष राशि का भुगतान करें।\n\nThank you / धन्यवाद।`;this.openWhatsApp(t.phone,fM);},
         openWhatsApp(phone, message) { const cP=phone.replace(/\D/g,''),fP=cP.startsWith('91')?cP:'91'+cP;const u=`https://wa.me/${fP}?text=${encodeURIComponent(message)}`;window.open(u,'_blank');},
         showToast(msg, type='success') {const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className=t.className.replace('show',''),3000);},
         readFileAsBase64(file) {return new Promise(r=>{if(!file||file.size===0)return r('');const rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(file)});},
