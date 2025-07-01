@@ -6,9 +6,9 @@
     <title>Tenant & Rent Management System</title>
     <link rel="icon" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3crect width='100' height='100' rx='15' fill='%236366f1'/%3e%3ctext x='50' y='68' font-size='50' font-weight='bold' fill='white' text-anchor='middle'%3eTR%3c/text%3e%3c/svg%3e">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- --- Google API & Identity Scripts --- -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- --- Google API & Identity Scripts (FIXED) --- -->
     <script src="https://apis.google.com/js/api.js" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" onload="onGoogleScriptsLoaded()" async defer></script>
     <style>
         :root {
             --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #10b981;
@@ -185,7 +185,8 @@
 <div id="toast"></div>
 
 <script>
-window.onload = () => {
+// This function is called by the Google GSI script tag's onload attribute
+function onGoogleScriptsLoaded() {
     const app = {
         // --- Configuration ---
         CLIENT_ID: '460969544827-21ethacfepnho56k8j89dtaq58rj0oem.apps.googleusercontent.com', // Replace with your own Client ID
@@ -212,23 +213,30 @@ window.onload = () => {
 
         // --- CORE: Initialization and Authentication ---
         init() {
+            // GAPI client is loaded via its own script tag, so we just need to initialize it.
             gapi.load('client', this.initializeGapiClient.bind(this));
+            
+            // GSI client is loaded, now initialize it.
             this.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: this.CLIENT_ID,
                 scope: this.SCOPES,
                 callback: this.handleAuthResponse.bind(this),
             });
-            document.getElementById('signin-btn').addEventListener('click', () => this.tokenClient.requestAccessToken({prompt: 'consent'}));
-            document.getElementById('signout-btn').addEventListener('click', this.signOut.bind(this));
         },
 
         async initializeGapiClient() {
-            await gapi.client.init({
-                apiKey: this.API_KEY,
-                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-            });
-            document.getElementById('signin-btn').disabled = false;
-            document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
+            try {
+                await gapi.client.init({
+                    apiKey: this.API_KEY,
+                    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+                });
+                document.getElementById('signin-btn').disabled = false;
+                document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
+            } catch (error) {
+                console.error("Error initializing GAPI client", error);
+                document.getElementById('auth-status').textContent = 'Error initializing. Please refresh.';
+                this.showToast('Could not initialize Google API client.', 'error');
+            }
         },
 
         async handleAuthResponse(response) {
@@ -325,7 +333,6 @@ window.onload = () => {
                     this.showToast(`Data loaded for ${this.monthNames[this.selectedDate.getMonth()]}. (${this.userRole} mode)`, "success");
 
                 } else if (this.isViewingCurrentMonth()) {
-                    // File for CURRENT month does NOT exist. Create it from last month's data.
                     this.showToast(`No file for current month. Creating from last month...`);
                     const lastMonthDate = new Date(this.selectedDate);
                     lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
@@ -342,12 +349,10 @@ window.onload = () => {
                         const prevFileContentResponse = await gapi.client.drive.files.get({ fileId: prevFileId, alt: 'media' });
                         const prevState = JSON.parse(prevFileContentResponse.body);
                         
-                        // Carry over persistent data
                         this.state.rooms = prevState.rooms || [];
                         this.state.tenants = prevState.tenants || [];
                         this.state.leftTenants = prevState.leftTenants || [];
                         this.state.settings = prevState.settings || this.state.settings;
-                        // Dues, payments, readings start fresh for the new month
 
                         this.showToast(`Rolled over data from ${this.monthNames[lastMonthDate.getMonth()]}. Saving new file.`, 'success');
                         await this.saveData();
@@ -412,7 +417,6 @@ window.onload = () => {
             }
         },
 
-        // --- UI & Event Handling ---
         navigateTo(v, id=null) { this.state.currentView=v;this.state.detailViewId=id;this.render(); },
         render() { const{currentView:v,detailViewId:id}=this.state;const m=document.getElementById('main-content-area');const k=v.includes('-')?v.split('-').map((p,i)=>i>0?p.charAt(0).toUpperCase()+p.slice(1):p).join(''):v;const f=this.templates[k];if(f)m.innerHTML=f.call(this,id);else m.innerHTML=`<p>Error: View '${v}' not found.</p>`;document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active',l.dataset.view===v.split('-')[0]));},
         addEventListeners() { 
@@ -440,17 +444,16 @@ window.onload = () => {
             });
         },
         
-        // --- TEMPLATES ---
         templates: {
             _getMonthSelector() {
                 let options = '';
-                let date = new Date(); // Start from today
-                for (let i = 0; i < 24; i++) { // Show last 24 months
+                let date = new Date();
+                for (let i = 0; i < 24; i++) {
                     const month = date.getMonth();
                     const year = date.getFullYear();
                     const isSelected = (year === this.selectedDate.getFullYear() && month === this.selectedDate.getMonth());
                     options += `<option value="${year}-${month}" ${isSelected ? 'selected' : ''}>${this.monthNames[month]} ${year}</option>`;
-                    date.setMonth(date.getMonth() - 1); // Go to previous month
+                    date.setMonth(date.getMonth() - 1);
                 }
                 return `<select id="month-selector" style="padding: 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem;">${options}</select>`;
             },
@@ -499,8 +502,8 @@ window.onload = () => {
                 return `<div class="view active"><div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div><div class="grid-container">${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" style="opacity: 0.8;"><div class="card-photo" style="background-image:url(${t.photo||''})"></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room Occupied: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Left On: ${new Date(t.leaveDate).toLocaleDateString()}</p></div></div>`).join('')||'<p>No records of left tenants.</p>'}</div></div>`;
             },
             settings() {
-                const canEdit = this.isOwner(); // Settings are global, not per-month
-                const saveSection = canEdit ? `<div class="detail-card" style="max-width:500px;margin-top:2rem;"><h4>Data Synchronization</h4><p style="margin-bottom:1rem;color:var(--text-light)">Manually save all current data for this month to your Google Drive.</p><button id="manual-save-btn" class="action-btn btn-secondary" data-action="manual-save" ${!this.isViewingCurrentMonth() ? 'disabled' : ''}>Sync Data to Drive</button></div>` : '';
+                const canEdit = this.isOwner();
+                const saveSection = this.isOwner() ? `<div class="detail-card" style="max-width:500px;margin-top:2rem;"><h4>Data Synchronization</h4><p style="margin-bottom:1rem;color:var(--text-light)">Manually save all current data for this month to your Google Drive.</p><button id="manual-save-btn" class="action-btn btn-secondary" data-action="manual-save" ${!this.isViewingCurrentMonth() ? 'disabled' : ''}>Sync Data to Drive</button></div>` : '';
                 return `<div class="view active"><div class="section-header"><h2 class="section-title">Settings</h2></div><div class="detail-card" style="max-width:500px;"><form id="settings-form"><h4>General Settings</h4><div class="form-group"><label>Electricity Rate (per unit)</label><input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}" ${!canEdit?'readonly':''}></div><div class="form-group"><label>Currency Symbol</label><input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}" ${!canEdit?'readonly':''}></div><div class="form-actions">${canEdit?'<button type="submit" class="action-btn btn-primary">Save Settings</button>':''}</div></form></div>${saveSection}</div>`;
             },
             roomDetail(id) { 
@@ -545,7 +548,7 @@ window.onload = () => {
         handleServiceChargeSubmit(f) { this.state.dues.push({id:`due_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#charge-amount').value),date:new Date().toISOString(),type:'service',description:f.querySelector('#charge-desc').value}); this.triggerAutoSave();this.render();this.showToast('Service charge added!'); },
         async handleEditRoomSubmit(f) { const id=f.dataset.id,r=this.state.rooms.find(rm=>rm.id===id); if(!r)return; const d=new FormData(f); r.number=d.get('number'); r.rent=parseFloat(d.get('rent')); const p=d.get('photo'); if(p&&p.size>0)r.photo=await this.uploadPhotoToDrive(p); this.triggerAutoSave();this.closeModal();this.render();this.showToast('Room details updated!'); },
         async handleEditTenantSubmit(f) { const id=f.dataset.id,t=this.state.tenants.find(tn=>tn.id===id); if(!t)return; const d=new FormData(f),oRId=t.roomId,nRId=d.get('roomId'); t.name=d.get('name');t.phone=d.get('phone');t.moveInDate=d.get('moveInDate');t.isVerified=d.get('isVerified')==='on';t.roomId=nRId; t.initialSecurityDeposit=parseFloat(d.get('initialSecurityDeposit')||'0'); const p=d.get('photo'); if(p&&p.size>0)t.photo=await this.uploadPhotoToDrive(p); if(oRId!==nRId){const oR=this.state.rooms.find(r=>r.id===oRId);if(oR){oR.status='available';oR.tenantId=null;} const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}} this.triggerAutoSave();this.closeModal();this.render();this.showToast('Tenant details updated!'); },
-        handleSettleSecurityDeposit(form, tenantId, type) { const p = (this.state.payments || []).filter(p => p.tenantId === tenantId); const sdp = p.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0); const sdr = p.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0); const sda = p.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0); const cSDB = sdp - sdr - sda; if (type === 'refund') { const rA = parseFloat(document.getElementById('refund-amount').value); if (rA <= 0 || rA > cSDB) { this.showToast('Invalid refund amount.', 'error'); return; } this.state.payments.push({ id: `pay_sd_refund_${Date.now()}`, tenantId: tenantId, amount: rA, date: new Date().toISOString(), category: 'Security Deposit (Refunded)', description: 'Security Deposit Refund' }); this.showToast(`Refunded ${this.state.settings.currencySymbol}${rA.toLocaleString('en-IN')}.`, 'success'); } else if (type === 'adjust') { const d = (this.state.dues || []).filter(d => d.tenantId === tenantId); const pExclSD = p.filter(pm => pm.category !== 'Security Deposit (Paid)' && pm.category !== 'Security Deposit (Refunded)' && pm.category !== 'Security Deposit (Adjusted)'); const cDB = d.reduce((s, d) => s + d.amount, 0) - pExclSD.reduce((s, p) => s + p.amount, 0); const aA = Math.min(cSDB, Math.max(0, cDB)); if (aA <= 0) { this.showToast('No outstanding dues or insufficient security deposit to adjust.', 'warning'); this.closeModal(); return; } this.state.payments.push({ id: `pay_sd_adjust_${Date.now()}`, tenantId: tenantId, amount: aA, date: new Date().toISOString(), category: 'Security Deposit (Adjusted)', description: 'Security Deposit Adjusted Against Dues' }); this.showToast(`Adjusted ${this.state.settings.currencySymbol}${aA.toLocaleString('en-IN')} from security deposit against dues.`, 'success'); } this.triggerAutoSave(); this.closeModal(); this.render(); },
+        handleSettleSecurityDeposit(form, tenantId, type) { const p = (this.state.payments || []).filter(p => p.tenantId === tenantId); const sdp = p.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0); const sdr = p.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0); const sda = p.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0); const cSDB = sdp - sdr - sda; if (type === 'refund') { const rA = parseFloat(document.getElementById('refund-amount').value); if (isNaN(rA) || rA <= 0 || rA > cSDB) { this.showToast('Invalid refund amount.', 'error'); return; } this.state.payments.push({ id: `pay_sd_refund_${Date.now()}`, tenantId: tenantId, amount: rA, date: new Date().toISOString(), category: 'Security Deposit (Refunded)', description: 'Security Deposit Refund' }); this.showToast(`Refunded ${this.state.settings.currencySymbol}${rA.toLocaleString('en-IN')}.`, 'success'); } else if (type === 'adjust') { const d = (this.state.dues || []).filter(d => d.tenantId === tenantId); const pExclSD = p.filter(pm => pm.category !== 'Security Deposit (Paid)' && pm.category !== 'Security Deposit (Refunded)' && pm.category !== 'Security Deposit (Adjusted)'); const cDB = d.reduce((s, d) => s + d.amount, 0) - pExclSD.reduce((s, p) => s + p.amount, 0); const aA = Math.min(cSDB, Math.max(0, cDB)); if (aA <= 0) { this.showToast('No outstanding dues or insufficient security deposit to adjust.', 'warning'); this.closeModal(); return; } this.state.payments.push({ id: `pay_sd_adjust_${Date.now()}`, tenantId: tenantId, amount: aA, date: new Date().toISOString(), category: 'Security Deposit (Adjusted)', description: 'Security Deposit Adjusted Against Dues' }); this.showToast(`Adjusted ${this.state.settings.currencySymbol}${aA.toLocaleString('en-IN')} from security deposit against dues.`, 'success'); } this.triggerAutoSave(); this.closeModal(); this.render(); },
         deleteItem(t, id) { if(t==='room'){if((this.state.rooms||[]).find(r=>r.id===id)?.status==='occupied'){this.showToast('Cannot delete occupied room.','error');return;} this.state.rooms=(this.state.rooms||[]).filter(r=>r.id!==id);this.navigateTo('rooms');} this.triggerAutoSave();this.showToast(`${t.replace('-',' ')} deleted.`,'success');},
         markTenantAsLeft(tenantId) { const tI=this.state.tenants.findIndex(t=>t.id===tenantId); if(tI===-1)return; const t=this.state.tenants[tI]; t.leaveDate=new Date().toISOString(); const r=this.state.rooms.find(r=>r.id===t.roomId); if(r){r.status='available';r.tenantId=null;} if(!this.state.leftTenants)this.state.leftTenants=[]; this.state.leftTenants.push(t); this.state.tenants.splice(tI,1); this.triggerAutoSave(); this.navigateTo('leftTenants'); this.showToast(`${t.name}'s record moved to Left Tenants.`,'success');},
         reportMeterBroken(rId) { const r=this.state.rooms.find(rm=>rm.id===rId);if(r)r.meterStatus='broken';this.triggerAutoSave();this.render();},
@@ -562,7 +565,7 @@ window.onload = () => {
     // Make app instance globally accessible for inline onclick handlers
     window.app = app;
     app.init();
-};
+}
 </script>
 </body>
 </html>
