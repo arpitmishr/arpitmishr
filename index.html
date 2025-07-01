@@ -485,7 +485,7 @@ window.onload = () => {
                 const{action:a,view:v,id:i,modalType:m,itemType:it}=t.dataset;
 
                 // Restrict actions for viewers
-                const ownerActions = ['show-modal', 'delete-item', 'mark-tenant-left', 'report-meter-broken', 'install-new-meter', 'manual-save'];
+                const ownerActions = ['show-modal', 'delete-item', 'mark-tenant-left', 'report-meter-broken', 'install-new-meter', 'manual-save', 'settle-security-deposit'];
                 if (ownerActions.includes(a) && !this.isOwner()) {
                     this.showToast('Access Denied: You are in viewer mode.', 'error');
                     return;
@@ -503,7 +503,8 @@ window.onload = () => {
                     'install-new-meter':()=>this.installNewMeter(i),
                     'share-receipt-whatsapp':()=>this.shareReceiptWhatsApp(i),
                     'share-dues-whatsapp':()=>this.shareDuesWhatsApp(i),
-                    'manual-save':()=>this.saveData()
+                    'manual-save':()=>this.saveData(),
+                    'settle-security-deposit': () => this.showModal('settleSecurityDeposit', i)
                 };
                 if(A[a])A[a]();
             });
@@ -523,6 +524,7 @@ window.onload = () => {
                     'service-charge-form':f=>this.handleServiceChargeSubmit(f),
                     'edit-room-form':f=>this.handleEditRoomSubmit(f),
                     'edit-tenant-form':f=>this.handleEditTenantSubmit(f),
+                    'settle-security-deposit-form': f => this.handleSettleSecurityDeposit(f)
                 };
                 if(h[e.target.id])h[e.target.id](e.target);
             });
@@ -560,14 +562,14 @@ window.onload = () => {
                 const o = (rooms || []).length > 0 ? (((tenants || []).length / (rooms || []).length) * 100).toFixed(0) : 0;
                 const tD = (tenants || []).reduce((total, t) => {
                     const tdues = (dues || []).filter(d => d.tenantId === t.id).reduce((s, d) => s + d.amount, 0);
-                    const tpmts = (payments || []).filter(p => p.tenantId === t.id).reduce((s, p) => s + p.amount, 0);
+                    const tpmts = (payments || []).filter(p => p.tenantId === t.id && p.category !== 'Security Deposit (Paid)' && p.category !== 'Security Deposit (Refunded)' && p.category !== 'Security Deposit (Adjusted)').reduce((s, p) => s + p.amount, 0);
                     return total + Math.max(0, tdues - tpmts)
                 }, 0);
                 const u = (tenants || []).filter(t => !t.isVerified);
                 let aH = u.map(t => `<div class="alert-item warning" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">${t.name}'s verification is pending. <span>View →</span></div>`).join('');
                 
                 const tenantsWithDues = (tenants || [])
-                    .map(tenant => ({ ...tenant, balance: (dues || []).filter(d => d.tenantId === tenant.id).reduce((s, d) => s + d.amount, 0) - (payments || []).filter(p => p.tenantId === tenant.id).reduce((s, p) => s + p.amount, 0) }))
+                    .map(tenant => ({ ...tenant, balance: (dues || []).filter(d => d.tenantId === tenant.id).reduce((s, d) => s + d.amount, 0) - (payments || []).filter(p => p.tenantId === tenant.id && p.category !== 'Security Deposit (Paid)' && p.category !== 'Security Deposit (Refunded)' && p.category !== 'Security Deposit (Adjusted)').reduce((s, p) => s + p.amount, 0) }))
                     .filter(tenant => tenant.balance > 0).sort((a, b) => b.balance - a.balance);
 
                 const tenantDuesSection = tenantsWithDues.length > 0 ? `<div class="dashboard-section" style="margin-top: 1.5rem;"><h3>Pending Dues by Tenant</h3><div id="tenant-dues-list">${tenantsWithDues.map(t => `<div class="alert-item danger" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><span>${t.name}</span><strong>${settings.currencySymbol}${t.balance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></div>`).join('')}</div></div>` : '';
@@ -693,8 +695,24 @@ window.onload = () => {
                 const r=(this.state.rooms||[]).find(rm=>rm.id===t.roomId);
                 const d=(this.state.dues||[]).filter(du=>du.tenantId===id);
                 const p=(this.state.payments||[]).filter(pm=>pm.tenantId===id);
+                
+                // Calculate current due balance (excluding security deposit movements)
+                const currentDuesTotal = d.reduce((s,du)=>s+du.amount,0);
+                const currentPaymentsTotal = p.filter(pm => 
+                    pm.category !== 'Security Deposit (Paid)' && 
+                    pm.category !== 'Security Deposit (Refunded)' &&
+                    pm.category !== 'Security Deposit (Adjusted)'
+                ).reduce((s,pm)=>s+pm.amount,0);
+                const balance = currentDuesTotal - currentPaymentsTotal;
+
+                // Calculate current security deposit balance
+                const sdPaid = p.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+                const sdRefunded = p.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+                const sdAdjusted = p.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+                const currentSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
                 const trs=[...d.map(du=>({...du,isDue:true})),...p.map(pm=>({...pm,isPayment:true}))].sort((a,b)=>new Date(b.date)-new Date(a.date));
-                const b=d.reduce((s,du)=>s+du.amount,0)-p.reduce((s,pm)=>s+pm.amount,0);
+                
                 const wS=`<svg viewBox="0 0 24 24"><path d="M16.75 13.96c.25.13.42.2.46.28.05.08.05.38-.02.75-.07.37-.52.68-.97.75-.45.07-1.03.22-1.57-.12-.54-.33-1.12-.78-1.8-1.38-.95-.83-1.63-1.85-1.7-2.03-.07-.18-.54-1.08.2-1.33.6-.2.95-.12 1.18.06.23.18.35.45.4.53.05.08.08.13.03.28-.05.15-.12.28-.23.4-.1.13-.18.18-.3.28-.13.1-.2.15-.28.25s-.12.18-.03.3.4.65.78 1.03c.53.5 1.12.83 1.33.9.2.08.33.05.43-.03.1-.08.43-.5.53-.65.1-.15.18-.13.28-.08zM12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>`;
                 const o=this.isOwner();
                 
@@ -704,6 +722,8 @@ window.onload = () => {
                 const paymentForm = o ? `<div class="detail-card"><h4>Add Payment</h4><form id="payment-form" data-tenant-id="${id}"><div class="form-group"><label>Amount Paid</label><input type="number" id="payment-amount" required></div><div class="form-group"><label>For</label><select id="payment-category" required><option value="Rent">Rent</option><option value="Electricity">Electricity</option><option value="Other">Other</option></select></div><button type="submit" class="action-btn btn-secondary" style="width:100%">Record Payment</button></form></div>` : ``;
                 const serviceChargeForm = o ? `<div class="detail-card"><h4>Add Service Charge</h4><form id="service-charge-form" data-tenant-id="${id}"><div class="form-group"><label>Description</label><input type="text" id="charge-desc" required></div><div class="form-group"><label>Amount</label><input type="number" id="charge-amount" required></div><button type="submit" class="action-btn btn-warning" style="width:100%">Add Charge</button></form></div>` : ``;
                 
+                const settleSDButton = o && currentSDBalance > 0 ? `<button class="action-btn btn-primary" data-action="settle-security-deposit" data-id="${id}">Settle Security Deposit</button>` : '';
+
                 return`<div class="view active">
                     <div class="section-header">
                         <div class="header-actions">
@@ -723,9 +743,25 @@ window.onload = () => {
                     <div class="detail-grid">
                         <div class="detail-main">
                             <div class="detail-card">
+                                <h4>Security Deposit</h4>
+                                <ul>
+                                    <li><span>Initial Deposit</span><strong>${this.state.settings.currencySymbol}${(t.initialSecurityDeposit || 0).toLocaleString('en-IN')}</strong></li>
+                                    <li><span>Current Balance</span><strong>${this.state.settings.currencySymbol}${currentSDBalance.toLocaleString('en-IN')}</strong></li>
+                                </ul>
+                                <div style="margin-top:1rem;">${settleSDButton}</div>
+                            </div>
+                            <div class="detail-card">
                                 <h4>Transactions</h4>
-                                ${b>0?`<div class="alert-item danger">Balance: <strong>${this.state.settings.currencySymbol}${b.toLocaleString('en-IN')}</strong></div>`:`<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared.</div>`}
-                                <div id="transaction-list">${trs.map(tr=>`<div class="transaction-item ${tr.isDue?'due':'payment'}"><div><p><strong>${tr.isDue?'-':'+'}${this.state.settings.currencySymbol}${tr.amount.toLocaleString('en-IN')}</strong> - ${tr.description||tr.category}</p><p style="font-size:0.9rem;color:var(--text-light)">${new Date(tr.date).toLocaleDateString()}</p></div>${tr.isPayment?`<div class="transaction-actions"><button class="action-btn btn-cancel" data-action="generate-receipt" data-id="${tr.id}">Receipt</button><button class="action-btn btn-whatsapp btn-icon" data-action="share-receipt-whatsapp" data-id="${tr.id}">${wS}</button></div>`:''}</div>`).join('')||'<p>No transactions.</p>'}</div>
+                                ${balance>0?`<div class="alert-item danger">Balance: <strong>${this.state.settings.currencySymbol}${balance.toLocaleString('en-IN')}</strong></div>`:`<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared.</div>`}
+                                <div id="transaction-list">
+                                    ${trs.map(tr=>`<div class="transaction-item ${tr.isDue?'due':'payment'}">
+                                        <div>
+                                            <p><strong>${tr.isDue?'-':'+'}${this.state.settings.currencySymbol}${tr.amount.toLocaleString('en-IN')}</strong> - ${tr.description||tr.category}</p>
+                                            <p style="font-size:0.9rem;color:var(--text-light)">${new Date(tr.date).toLocaleDateString()}</p>
+                                        </div>
+                                        ${tr.isPayment?`<div class="transaction-actions"><button class="action-btn btn-cancel" data-action="generate-receipt" data-id="${tr.id}">Receipt</button><button class="action-btn btn-whatsapp btn-icon" data-action="share-receipt-whatsapp" data-id="${tr.id}">${wS}</button></div>`:''}
+                                    </div>`).join('')||'<p>No transactions.</p>'}
+                                </div>
                             </div>
                         </div>
                         <div class="detail-sidebar">
@@ -756,10 +792,85 @@ window.onload = () => {
             }
             const mC=document.getElementById('modal-container');let mH='';
             if(type==='addRoom'){mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;
-            }else if(type==='editRoom'){const r=(this.state.rooms || []).find(rm=>rm.id===id);if(!r)return;mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}"></div><div class="form-group"><label>Room Photo (leave blank for current)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'};"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
-            }else if(type==='addTenant'){const aR=(this.state.rooms || []).filter(r=>r.status==='available');mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;
-            }else if(type==='editTenant'){const t=(this.state.tenants || []).find(tn=>tn.id===id);if(!t)return;const cR=(this.state.rooms || []).find(r=>r.id===t.roomId),aR=(this.state.rooms || []).filter(r=>r.status==='available'),rO=[cR,...aR].filter(Boolean),uRO=[...new Map(rO.map(i=>[i['id'],i])).values()];mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (leave blank for current)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'};"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;} 
+            }else if(type==='editRoom'){const r=(this.state.rooms || []).find(rm=>rm.id===id);if(!r)return;mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}"></div><div class="form-group"><label>Room Photo (leave blank)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'};"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
+            }else if(type==='addTenant'){const aR=(this.state.rooms || []).filter(r=>r.status==='available');mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="0"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;
+            }else if(type==='editTenant'){const t=(this.state.tenants || []).find(tn=>tn.id===id);if(!t)return;const cR=(this.state.rooms || []).find(r=>r.id===t.roomId),aR=(this.state.rooms || []).filter(r=>r.status==='available'),rO=[cR,...aR].filter(Boolean),uRO=[...new Map(rO.map(i=>[i['id'],i])).values()];mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="${t.initialSecurityDeposit || 0}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (leave blank)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'};"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
+            } else if (type === 'settleSecurityDeposit') {
+                const tenantPayments = (this.state.payments || []).filter(p => p.tenantId === id);
+                const sdPaid = tenantPayments.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+                const sdRefunded = tenantPayments.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+                const sdAdjusted = tenantPayments.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+                const currentSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
+                const tenantDues = (this.state.dues || []).filter(d => d.tenantId === id);
+                const tenantPaymentsExclSD = tenantPayments.filter(pm => 
+                    pm.category !== 'Security Deposit (Paid)' && 
+                    pm.category !== 'Security Deposit (Refunded)' &&
+                    pm.category !== 'Security Deposit (Adjusted)'
+                );
+                const currentDuesBalance = tenantDues.reduce((s, d) => s + d.amount, 0) - tenantPaymentsExclSD.reduce((s, p) => s + p.amount, 0);
+
+                mH = `<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Settle Security Deposit</h2><button class="close-btn" data-action="close-modal">×</button></div>
+                    <form id="settle-security-deposit-form" data-tenant-id="${id}">
+                        <p style="margin-bottom: 1rem;">Current Security Deposit Balance: <strong>${this.state.settings.currencySymbol}${currentSDBalance.toLocaleString('en-IN')}</strong></p>
+                        <p style="margin-bottom: 1rem;">Current Pending Dues: <strong>${this.state.settings.currencySymbol}${Math.max(0, currentDuesBalance).toLocaleString('en-IN')}</strong></p>
+                        
+                        <div class="form-group">
+                            <label>Amount to Refund</label>
+                            <input type="number" step="0.01" id="refund-amount" max="${currentSDBalance}" value="0">
+                        </div>
+                        <p style="text-align: center; margin-bottom: 1rem; color: var(--text-light);">OR</p>
+                        <button type="button" class="action-btn btn-secondary" style="width:100%;" data-action="adjust-deposit-against-dues" data-id="${id}">Adjust Against Pending Dues</button>
+                        <div class="form-actions">
+                            <button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button>
+                            <button type="submit" class="action-btn btn-primary" id="confirm-refund-btn">Confirm Refund</button>
+                        </div>
+                    </form></div></div>`;
+            }
             mC.innerHTML=mH; 
+
+            if (type === 'settleSecurityDeposit') {
+                const refundInput = mC.querySelector('#refund-amount');
+                const confirmRefundBtn = mC.querySelector('#confirm-refund-btn');
+                const adjustBtn = mC.querySelector('[data-action="adjust-deposit-against-dues"]');
+                const sdTenantId = id;
+
+                // Add event listener for the "Adjust Against Pending Dues" button
+                if (adjustBtn) {
+                    adjustBtn.addEventListener('click', async () => {
+                        if (!this.isOwner()) {
+                            this.showToast('Access Denied: You are in viewer mode.', 'error');
+                            return;
+                        }
+                        if (confirm(`Are you sure you want to adjust the security deposit against outstanding dues?`)) {
+                            await this.handleSettleSecurityDeposit(null, sdTenantId, 'adjust', currentSDBalance, currentDuesBalance);
+                        }
+                    });
+                }
+                
+                // Event listener for the "Confirm Refund" button (which is also the form submit)
+                if (confirmRefundBtn) {
+                    confirmRefundBtn.addEventListener('click', async (event) => {
+                         if (!this.isOwner()) {
+                            this.showToast('Access Denied: You are in viewer mode.', 'error');
+                            return;
+                        }
+                        event.preventDefault(); // Prevent default form submission initially
+                        const refundAmount = parseFloat(refundInput.value);
+                        if (isNaN(refundAmount) || refundAmount <= 0) {
+                            this.showToast('Please enter a valid amount to refund.', 'error');
+                            return;
+                        }
+                        if (refundAmount > currentSDBalance) {
+                            this.showToast('Refund amount cannot exceed current security deposit balance.', 'error');
+                            return;
+                        }
+                        if (confirm(`Are you sure you want to refund ${this.state.settings.currencySymbol}${refundAmount.toLocaleString('en-IN')}?`)) {
+                            await this.handleSettleSecurityDeposit(null, sdTenantId, 'refund', refundAmount);
+                        }
+                    });
+                }
+            }
         },
         closeModal() { document.getElementById('modal-container').innerHTML = ''; },
         
@@ -787,6 +898,7 @@ window.onload = () => {
             
             const photoFile = d.get('photo');
             const photoUrl = await this.uploadPhotoToDrive(photoFile);
+            const initialSD = parseFloat(d.get('initialSecurityDeposit') || '0');
 
             const nT={
                 id:`tenant_${Date.now()}`,
@@ -795,9 +907,23 @@ window.onload = () => {
                 moveInDate:d.get('moveInDate'),
                 isVerified:d.get('isVerified')==='on',
                 photo: photoUrl, // Store URL
-                roomId:rId
+                roomId:rId,
+                initialSecurityDeposit: initialSD // Store initial SD
             };
             this.state.tenants.push(nT);
+
+            // Record initial security deposit as a payment
+            if (initialSD > 0) {
+                this.state.payments.push({
+                    id: `pay_sd_${Date.now()}`,
+                    tenantId: nT.id,
+                    amount: initialSD,
+                    date: new Date().toISOString(),
+                    category: 'Security Deposit (Paid)',
+                    description: 'Initial Security Deposit'
+                });
+            }
+
             const r=this.state.rooms.find(rm=>rm.id===rId);
             if(r){r.status='occupied';r.tenantId=nT.id;}
             this.triggerAutoSave();this.closeModal();this.navigateTo('tenants');this.showToast('Tenant added!');
@@ -840,6 +966,7 @@ window.onload = () => {
             if(!t)return;
             const d=new FormData(f),oRId=t.roomId,nRId=d.get('roomId');
             t.name=d.get('name');t.phone=d.get('phone');t.moveInDate=d.get('moveInDate');t.isVerified=d.get('isVerified')==='on';t.roomId=nRId;
+            t.initialSecurityDeposit = parseFloat(d.get('initialSecurityDeposit') || '0'); // Update initial SD, but actual balance is from payments
             const p=d.get('photo');
             if(p&&p.size>0)t.photo=await this.uploadPhotoToDrive(p); // Update photo if new one selected
             if(oRId!==nRId){
@@ -847,6 +974,55 @@ window.onload = () => {
                 const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}
             }
             this.triggerAutoSave();this.closeModal();this.render();this.showToast('Tenant details updated!');
+        },
+        async handleSettleSecurityDeposit(form, tenantId, type, amount, currentDuesBalance = 0) {
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            const tenantPayments = (this.state.payments || []).filter(p => p.tenantId === tenantId);
+            const sdPaid = tenantPayments.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+            const sdRefunded = tenantPayments.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+            const sdAdjusted = tenantPayments.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+            const currentSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
+            if (type === 'refund') {
+                const refundAmount = amount; // amount is directly the refund value here
+                if (refundAmount <= 0 || refundAmount > currentSDBalance) {
+                    this.showToast('Invalid refund amount.', 'error');
+                    return;
+                }
+                this.state.payments.push({
+                    id: `pay_sd_refund_${Date.now()}`,
+                    tenantId: tenantId,
+                    amount: refundAmount,
+                    date: new Date().toISOString(),
+                    category: 'Security Deposit (Refunded)',
+                    description: 'Security Deposit Refund'
+                });
+                this.showToast(`Refunded ${this.state.settings.currencySymbol}${refundAmount.toLocaleString('en-IN')}.`, 'success');
+
+            } else if (type === 'adjust') {
+                const amountToAdjust = Math.min(currentSDBalance, Math.max(0, currentDuesBalance));
+                if (amountToAdjust <= 0) {
+                    this.showToast('No outstanding dues or insufficient security deposit to adjust.', 'warning');
+                    this.closeModal(); // Close if no adjustment needed
+                    return;
+                }
+                this.state.payments.push({
+                    id: `pay_sd_adjust_${Date.now()}`,
+                    tenantId: tenantId,
+                    amount: amountToAdjust,
+                    date: new Date().toISOString(),
+                    category: 'Security Deposit (Adjusted)',
+                    description: 'Security Deposit Adjusted Against Dues'
+                });
+                this.showToast(`Adjusted ${this.state.settings.currencySymbol}${amountToAdjust.toLocaleString('en-IN')} from security deposit against dues.`, 'success');
+            }
+
+            this.triggerAutoSave();
+            this.closeModal();
+            this.render(); // Re-render tenant detail to show updated balance
         },
         deleteItem(t, id) { 
             if (!this.isOwner()) {
@@ -932,25 +1108,41 @@ window.onload = () => {
         },
         generateReceipt(pId){const p=this.state.payments.find(pm=>pm.id===pId),t=this.state.tenants.find(tn=>tn.id===p.tenantId)||this.state.leftTenants.find(tn=>tn.id===p.tenantId),w=window.open('','रसीद');w.document.write(`<html><head><title>भुगतान रसीद</title></head><body style="font-family:sans-serif;padding:2rem;"><h1>भुगतान रसीद</h1><hr><p><strong>प्राप्तकर्ता का नाम:</strong> ${t.name}</p><p><strong>राशि:</strong> ${this.state.settings.currencySymbol}${p.amount.toLocaleString('en-IN')}</p><p><strong>दिनांक:</strong> ${new Date(p.date).toLocaleString('hi-IN')}</p><p><strong>के लिए:</strong> ${p.description||p.category}</p><hr><p>धन्यवाद!</p></body></html>`);w.document.close();w.print();},
         shareReceiptWhatsApp(paymentId) { const p=this.state.payments.find(pm=>pm.id===paymentId);if(!p)return;const t=this.state.tenants.find(tn=>tn.id===p.tenantId)||this.state.leftTenants.find(tn=>tn.id===p.tenantId);if(!t||!t.phone){this.showToast('Tenant phone not found.','error');return;}const{currencySymbol:cS}=this.state.settings;const m=`*Payment Confirmation*\n\nHi ${t.name},\n\nWe have received your payment.\n\n*Details:*\nAmount: ${cS}${p.amount.toLocaleString('en-IN')}\nDate: ${new Date(p.date).toLocaleDateString()}\nFor: ${p.description||p.category}\n\nThank you.`;this.openWhatsApp(t.phone,m);},
-        shareDuesWhatsApp(tenantId){const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t||!t.phone){this.showToast('किरायेदार का फ़ोन नंबर नहीं मिला। कृपया जांचें।','error');return;}const{currencySymbol:cS,electricityRate:eR}=this.state.settings;const allDues=(this.state.dues||[]).filter(d=>d.tenantId===tenantId),allPayments=(this.state.payments||[]).filter(p=>p.tenantId===tenantId);const totalDueAmount=allDues.reduce((s,d)=>s+d.amount,0),totalPaidAmount=allPayments.reduce((s,p)=>s+p.amount,0);const balance=totalDueAmount-totalPaidAmount;if(balance<=0){this.showToast('कोई लंबित बकाया राशि नहीं है।','success');return;}const hindiDueItems=[];allDues.forEach(d=>{let itemString='';const amountFormatted=`${cS}${d.amount.toLocaleString('hi-IN')}`;if(d.type==='rent'){itemString=`* किराया: ${amountFormatted}`;
-                // Check if this specific rent due has been paid
-                const paidRent = allPayments.filter(p => p.category === 'Rent' && new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && new Date(p.date).getMonth() === new Date(d.date).getMonth()).reduce((s, p) => s + p.amount, 0);
-                if (paidRent < d.amount) {
-                    hindiDueItems.push(itemString);
-                }
-            }else if(d.type==='utility'){const unitsMatch=d.description.match(/(\d+(\.\d+)?)\s*units/),units=unitsMatch?unitsMatch[1]:'N/A';itemString=`* बिजली: ${units} यूनिट @ ${cS}${eR}/यूनिट = ${amountFormatted}`;
-                // Check if this specific utility due has been paid
-                const paidUtility = allPayments.filter(p => p.category === 'Electricity' && p.description === d.description && new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && new Date(p.date).getMonth() === new Date(d.date).getMonth()).reduce((s, p) => s + p.amount, 0);
-                if (paidUtility < d.amount) {
-                     hindiDueItems.push(itemString);
-                }
-            }else if(d.type==='service'){itemString=`* ${d.description}: ${amountFormatted}`;
-                // Check if this specific service charge has been paid
-                const paidService = allPayments.filter(p => p.category === 'Other' && p.description === d.description).reduce((s, p) => s + p.amount, 0);
-                if (paidService < d.amount) {
-                     hindiDueItems.push(itemString);
-                }
-            }});
+        shareDuesWhatsApp(tenantId){const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t||!t.phone){this.showToast('किरायेदार का फ़ोन नंबर नहीं मिला। कृपया जांचें।','error');return;}const{currencySymbol:cS,electricityRate:eR}=this.state.settings;
+            // Exclude security deposit movements from standard dues calculation
+            const allDues=(this.state.dues||[]).filter(d=>d.tenantId===tenantId);
+            const allPayments=(this.state.payments||[]).filter(p=>p.tenantId===tenantId && !['Security Deposit (Paid)', 'Security Deposit (Refunded)', 'Security Deposit (Adjusted)'].includes(p.category));
+            
+            const totalDueAmount=allDues.reduce((s,d)=>s+d.amount,0);
+            const totalPaidAmount=allPayments.reduce((s,p)=>s+p.amount,0);
+            const balance=totalDueAmount-totalPaidAmount;
+            
+            if(balance<=0){this.showToast('कोई लंबित बकाया राशि नहीं है।','success');return;}
+            const hindiDueItems=[];
+            allDues.forEach(d=>{let itemString='';const amountFormatted=`${cS}${d.amount.toLocaleString('hi-IN')}`;
+            
+            // For rent and utility, we need to check if the specific month's due is paid
+            let isPaid = false;
+            if (d.type === 'rent') {
+                const paidForThisMonth = allPayments.filter(p => p.category === 'Rent' && new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && new Date(p.date).getMonth() === new Date(d.date).getMonth()).reduce((s, p) => s + p.amount, 0);
+                if (paidForThisMonth >= d.amount) isPaid = true;
+            } else if (d.type === 'utility') {
+                const paidForThisUtility = allPayments.filter(p => p.category === 'Electricity' && p.description === d.description && new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && new Date(p.date).getMonth() === new Date(d.date).getMonth()).reduce((s, p) => s + p.amount, 0);
+                if (paidForThisUtility >= d.amount) isPaid = true;
+            } else if (d.type === 'service') {
+                 // For service charges, a simple check if any payment covers it by description or if it's explicitly paid
+                 const paidForThisService = allPayments.filter(p => p.category === 'Other' && p.description === d.description).reduce((s, p) => s + p.amount, 0);
+                 if (paidForThisService >= d.amount) isPaid = true;
+            }
+
+            if (!isPaid) {
+                if(d.type==='rent'){itemString=`* किराया: ${amountFormatted}`;}
+                else if(d.type==='utility'){const unitsMatch=d.description.match(/(\d+(\.\d+)?)\s*units/),units=unitsMatch?unitsMatch[1]:'N/A';itemString=`* बिजली: ${units} यूनिट @ ${cS}${eR}/यूनिट = ${amountFormatted}`;}
+                else if(d.type==='service'){itemString=`* ${d.description}: ${amountFormatted}`;}
+                hindiDueItems.push(itemString);
+            }
+            });
+            
             const duesListString=hindiDueItems.join('\n');
             const paymentPhoneNumber='7078098123';
             const finalWhatsAppMessage=`नमस्ते ${t.name},\n\nयह आपके बकाया शुल्कों का विवरण है:\n\n${duesListString}\n\n*कुल देय राशि: ${cS}${balance.toLocaleString('hi-IN')}*\n\nकृपया जल्द से जल्द शेष राशि का भुगतान करें। आप इस नंबर पर भुगतान कर सकते हैं: *${paymentPhoneNumber}*\n\nभुगतान के बाद, कृपया हमें *स्क्रीनशॉट* भेजना न भूलें।\n\nधन्यवाद।`;
