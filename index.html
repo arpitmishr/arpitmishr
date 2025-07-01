@@ -6,9 +6,9 @@
     <title>Tenant & Rent Management System</title>
     <link rel="icon" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3crect width='100' height='100' rx='15' fill='%236366f1'/%3e%3ctext x='50' y='68' font-size='50' font-weight='bold' fill='white' text-anchor='middle'%3eTR%3c/text%3e%3c/svg%3e">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- --- Google API & Identity Scripts (FIXED) --- -->
+    <!-- --- Google API & Identity Scripts --- -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
-    <script src="https://accounts.google.com/gsi/client" onload="onGoogleScriptsLoaded()" async defer></script>
     <style>
         :root {
             --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #10b981;
@@ -53,7 +53,6 @@
         .user-profile div { line-height: 1.2; }
         .user-profile span { font-weight: 600; font-size: 0.9rem; }
         #signout-btn { font-size: 0.8rem; color: var(--danger-color); cursor: pointer; background: none; border: none; padding: 0; }
-
         .view { display: none; } .view.active { display: block; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
         .section-header .header-actions { display: flex; gap: 1rem; align-items: center; }
@@ -107,7 +106,7 @@
         .form-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
         #photo-preview { max-width: 100px; max-height: 100px; margin-top: 1rem; border-radius: 8px; object-fit: cover; }
         #toast { position: fixed; bottom: -100px; right: 20px; padding: 1rem 2rem; border-radius: 8px; color: white; font-weight: 500; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: bottom 0.5s ease-in-out; z-index: 9999; }
-        #toast.show { bottom: 20px; } #toast.success { background-color: var(--secondary-color); } #toast.error { background-color: var(--danger-color); } #toast.warning { background-color: var(--warning-color); color: var(--text-color); }
+        #toast.show { bottom: 20px; } #toast.success { background-color: var(--secondary-color); } #toast.error { background-color: var(--danger-color); }
         
         @media (max-width: 1024px) {
              .detail-grid { grid-template-columns: 1fr; }
@@ -129,114 +128,106 @@
     </style>
 </head>
 <body>
-<div id="login-screen">
-    <div class="login-box">
-        <h1 class="logo" style="margin-bottom: 1rem;">Mishra Ji 🚩</h1>
-        <p style="color: var(--text-light); margin-bottom: 2rem;">श्री चंद्रशेखर मिश्रा फैमिली निवास 🙂</p>
-        
-        <p style="color: var(--text-light); margin-bottom: 2rem;">रूम और किरायेदार का रिकॉर्ड</p>
-        <button id="signin-btn" disabled>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.012 35.841 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
-            Sign in with Google
-        </button>
-        <p id="auth-status" style="margin-top: 1rem; color: var(--text-light);">Initializing...</p>
+
+    <div id="login-screen">
+        <div class="login-box">
+            <h1 class="logo" style="margin-bottom: 1rem;">Mishra Ji 🚩</h1>
+            <p style="color: var(--text-light); margin-bottom: 2rem;">श्री चंद्रशेखर मिश्रा फैमिली निवास 🙂</p>
+            
+            <p style="color: var(--text-light); margin-bottom: 2rem;">रूम और किरायेदार का रिकॉर्ड</p>
+            <button id="signin-btn" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.012 35.841 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                Sign in with Google
+            </button>
+            <p id="auth-status" style="margin-top: 1rem; color: var(--text-light);">Initializing...</p>
+        </div>
     </div>
-</div>
 
-<div id="app-container">
-    <aside class="sidebar">
-        <div class="sidebar-top">
-            <h1 class="logo">Mishra Ji</h1>
-            <nav class="nav-menu">
-                <a data-action="navigate" data-view="dashboard" class="nav-link">
-                    <svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
-                    <span>Dashboard</span>
-                </a>
-                <a data-action="navigate" data-view="rooms" class="nav-link">
-                    <svg viewBox="0 0 24 24"><path d="M21.99 8.24c0-2.3-1.48-4.27-3.53-5.02C17.06 2.44 15.65 2 14 2h-4c-3.31 0-6 2.69-6 6v12h2V8c0-2.21 1.79-4 4-4h4c1.11 0 2.1.48 2.82 1.25.73.78 1.18 1.83 1.18 2.94v.81h-6v2h6v2h-6v2h6v2h-6v2h6v2h2V8.24z"/></svg>
-                    <span>Rooms</span>
-                </a>
-                <a data-action="navigate" data-view="tenants" class="nav-link">
-                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                    <span>Tenants</span>
-                </a>
-                <a data-action="navigate" data-view="leftTenants" class="nav-link">
-                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                    <span>Left Tenants</span>
-                </a>
-                <a data-action="navigate" data-view="settings" class="nav-link">
-                    <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
-                    <span>Settings</span>
-                </a>
-            </nav>
-        </div>
-        <div id="user-profile-container" class="user-profile" style="display: none;">
-            <img id="user-img" src="" alt="User">
-            <div>
-                <span id="user-name"></span>
-                <button id="signout-btn">Sign Out</button>
+    <div id="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <h1 class="logo">Mishra Ji</h1>
+                <nav class="nav-menu">
+                    <a data-action="navigate" data-view="dashboard" class="nav-link">
+                        <svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>
+                        <span>Dashboard</span>
+                    </a>
+                    <a data-action="navigate" data-view="rooms" class="nav-link">
+                        <svg viewBox="0 0 24 24"><path d="M21.99 8.24c0-2.3-1.48-4.27-3.53-5.02C17.06 2.44 15.65 2 14 2h-4c-3.31 0-6 2.69-6 6v12h2V8c0-2.21 1.79-4 4-4h4c1.11 0 2.1.48 2.82 1.25.73.78 1.18 1.83 1.18 2.94v.81h-6v2h6v2h-6v2h6v2h-6v2h6v2h2V8.24z"/></svg>
+                        <span>Rooms</span>
+                    </a>
+                    <a data-action="navigate" data-view="tenants" class="nav-link">
+                        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <span>Tenants</span>
+                    </a>
+                    <a data-action="navigate" data-view="leftTenants" class="nav-link">
+                        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                        <span>Left Tenants</span>
+                    </a>
+                    <a data-action="navigate" data-view="settings" class="nav-link">
+                        <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+                        <span>Settings</span>
+                    </a>
+                </nav>
             </div>
-        </div>
-    </aside>
-    <main class="main-content" id="main-content-area"></main>
-</div>
+            <div id="user-profile-container" class="user-profile" style="display: none;">
+                <img id="user-img" src="" alt="User">
+                <div>
+                    <span id="user-name"></span>
+                    <button id="signout-btn">Sign Out</button>
+                </div>
+            </div>
+        </aside>
+        <main class="main-content" id="main-content-area"></main>
+    </div>
 
-<div id="modal-container"></div>
-<div id="toast"></div>
+    <div id="modal-container"></div>
+    <div id="toast"></div>
 
 <script>
-// This function is called by the Google GSI script tag's onload attribute
-function onGoogleScriptsLoaded() {
+window.onload = () => {
     const app = {
         // --- Configuration ---
-        CLIENT_ID: '460969544827-21ethacfepnho56k8j89dtaq58rj0oem.apps.googleusercontent.com', // Replace with your own Client ID
-        API_KEY: 'AIzaSyDJ3soSuJgHcbD8beauFPWd06wJWqws3ps', // Replace with your own API Key
-        SCOPES: 'https://www.googleapis.com/auth/drive.file',
+        CLIENT_ID: '460969544827-21ethacfepnho56k8j89dtaq58rj0oem.apps.googleusercontent.com',
+        API_KEY: 'AIzaSyDJ3soSuJgHcbD8beauFPWd06wJWqws3ps',
+        SCOPES: 'https://www.googleapis.com/auth/drive.file', // Scope for app-specific files
         APP_FOLDER_NAME: 'TenantManagementApp',
+        DATA_FILE_NAME: 'tenant_data.json', // The MASTER file for app operation
+        MONTHLY_FILENAME_TEMPLATE: (month, year) => `${month.toLowerCase()}_${year}tanent_reord.json`,
         
         tokenClient: null,
         appFolderId: null,
-        driveFileId: null, // Specific to the loaded month
+        driveFileId: null, // ID for the MASTER file
         isSaving: false,
         saveTimeout: null,
-        userRole: 'owner',
+        userRole: 'owner', // 'owner' or 'viewer' - defaults to owner for first time use
 
-        // --- NEW: Month-wise state management ---
-        selectedDate: new Date(),
-        monthNames: ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"],
-        
         state: {
             rooms: [], tenants: [], leftTenants: [], dues: [], payments: [], utilityReadings: [],
             settings: { electricityRate: 8.00, currencySymbol: '₹' },
             currentView: 'dashboard', detailViewId: null,
+            dashboardFilter: 'this_month'
         },
 
         // --- CORE: Initialization and Authentication ---
         init() {
-            // GAPI client is loaded via its own script tag, so we just need to initialize it.
             gapi.load('client', this.initializeGapiClient.bind(this));
-            
-            // GSI client is loaded, now initialize it.
             this.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: this.CLIENT_ID,
                 scope: this.SCOPES,
                 callback: this.handleAuthResponse.bind(this),
             });
+            document.getElementById('signin-btn').addEventListener('click', () => this.tokenClient.requestAccessToken({prompt: 'consent'}));
+            document.getElementById('signout-btn').addEventListener('click', this.signOut.bind(this));
         },
 
         async initializeGapiClient() {
-            try {
-                await gapi.client.init({
-                    apiKey: this.API_KEY,
-                    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-                });
-                document.getElementById('signin-btn').disabled = false;
-                document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
-            } catch (error) {
-                console.error("Error initializing GAPI client", error);
-                document.getElementById('auth-status').textContent = 'Error initializing. Please refresh.';
-                this.showToast('Could not initialize Google API client.', 'error');
-            }
+            await gapi.client.init({
+                apiKey: this.API_KEY,
+                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+            });
+            document.getElementById('signin-btn').disabled = false;
+            document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
         },
 
         async handleAuthResponse(response) {
@@ -244,8 +235,8 @@ function onGoogleScriptsLoaded() {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-container').classList.add('visible');
             await this.updateUserProfile();
-            this.addEventListeners();
-            await this.switchMonth(); // Initial load for the current month
+            await this.loadData();
+            this.startAppLogic();
         },
         
         signOut() {
@@ -253,8 +244,7 @@ function onGoogleScriptsLoaded() {
             if (token !== null) {
                 google.accounts.oauth2.revoke(token.access_token, () => {
                     gapi.client.setToken('');
-                    this.driveFileId = null; this.appFolderId = null; this.userRole = 'owner';
-                    this.selectedDate = new Date();
+                    this.driveFileId = null; this.appFolderId = null; this.userRole = 'owner'; // Reset role on sign out
                     document.getElementById('login-screen').style.display = 'flex';
                     document.getElementById('app-container').classList.remove('visible');
                     this.showToast('Signed out successfully.');
@@ -270,153 +260,264 @@ function onGoogleScriptsLoaded() {
                 document.getElementById('user-profile-container').style.display = 'flex';
             } catch (e) { console.error("Could not fetch user profile", e); }
         },
-
-        // --- CORE: Google Drive Data Management & Month-wise Logic ---
-        _getFilenameForDate(date) {
-            const month = this.monthNames[date.getMonth()];
-            const year = date.getFullYear();
-            return `${month}_${year}_tenant_data.json`;
-        },
-
-        isViewingCurrentMonth() {
-            const now = new Date();
-            return this.selectedDate.getMonth() === now.getMonth() && this.selectedDate.getFullYear() === now.getFullYear();
-        },
-
-        async switchMonth(year, month) {
-            const initialSettings = this.state.settings;
-            this.state = { rooms: [], tenants: [], leftTenants: [], dues: [], payments: [], utilityReadings: [], settings: initialSettings, currentView: 'dashboard', detailViewId: null };
-            this.driveFileId = null; 
-
-            if (year !== undefined && month !== undefined) {
-                 this.selectedDate = new Date(year, month, 1);
-            } else {
-                 this.selectedDate = new Date();
-            }
-            
-            await this.loadData();
-            
-            if (this.isOwner() && this.isViewingCurrentMonth()) {
+        
+        startAppLogic() {
+            if (this.isOwner()) {
                 const duesGenerated = this.generateMissingRentDues();
-                if (duesGenerated > 0) {
-                    this.triggerAutoSave();
-                    this.showToast(`${duesGenerated} new rent due(s) generated for this month.`);
-                }
-            } else if (!this.isViewingCurrentMonth()) {
-                this.showToast(`Viewing historical data for ${this.monthNames[this.selectedDate.getMonth()]} ${this.selectedDate.getFullYear()}. Actions are disabled.`, 'warning');
+                if (duesGenerated > 0) { this.triggerAutoSave(); this.showToast(`${duesGenerated} new rent due(s) generated.`); }
+            } else {
+                this.showToast('Logged in as Viewer. Actions are restricted.');
             }
+            this.addEventListeners();
             this.navigateTo('dashboard');
         },
 
-        async loadData() {
-            const filename = this._getFilenameForDate(this.selectedDate);
-            this.showToast(`Loading data for ${this.monthNames[this.selectedDate.getMonth()]} ${this.selectedDate.getFullYear()}...`);
-
+        // --- CORE: Google Drive Data Management & Roles ---
+        async _findOrCreateAppFolder() {
+            if (this.appFolderId) return this.appFolderId;
             try {
-                const response = await gapi.client.drive.files.list({ 
-                    q: `name='${filename}' and trashed=false`, 
+                // Search for the folder by name
+                let res = await gapi.client.drive.files.list({ 
+                    q: `name='${this.APP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`, 
                     spaces: 'drive', 
-                    fields: 'files(id, name, capabilities)'
+                    fields: 'files(id)' 
+                });
+
+                if (res.result.files && res.result.files.length > 0) {
+                    this.appFolderId = res.result.files[0].id;
+                } else {
+                    // Create the folder if it doesn't exist
+                    let folder = { 'name': this.APP_FOLDER_NAME, 'mimeType': 'application/vnd.google-apps.folder' };
+                    res = await gapi.client.drive.files.create({ 
+                        resource: folder, 
+                        fields: 'id' 
+                    });
+                    this.appFolderId = res.result.id;
+                }
+                return this.appFolderId;
+            } catch (e) { 
+                console.error('Error finding/creating app folder:', e); 
+                this.showToast('Could not access Drive folder.', 'error'); 
+                throw e; // Propagate error
+            }
+        },
+
+        async loadData() {
+            this.showToast("Loading data from Google Drive...");
+            try {
+                // Try to find the MASTER data file
+                const response = await gapi.client.drive.files.list({ 
+                    q: `name='${this.DATA_FILE_NAME}' and trashed=false`, 
+                    spaces: 'drive', 
+                    fields: 'files(id, name, capabilities)' // Request capabilities to determine user role
                 });
 
                 if (response.result.files && response.result.files.length > 0) {
                     const file = response.result.files[0];
                     this.driveFileId = file.id;
-                    this.userRole = file.capabilities.canEdit ? 'owner' : 'viewer';
+                    // Determine user role based on file edit capabilities
+                    this.userRole = file.capabilities.canEdit ? 'owner' : 'viewer'; 
                     
-                    const fileContentResponse = await gapi.client.drive.files.get({ fileId: this.driveFileId, alt: 'media' });
+                    // Fetch file content
+                    const fileContentResponse = await gapi.client.drive.files.get({ 
+                        fileId: this.driveFileId, 
+                        alt: 'media' 
+                    });
                     const loadedState = JSON.parse(fileContentResponse.body);
                     
+                    // Merge loaded state with default to ensure all properties exist
                     const defaultState = { rooms: [], tenants: [], leftTenants: [], dues: [], payments: [], utilityReadings: [] };
-                    this.state = { ...defaultState, ...this.state, ...loadedState };
+                    this.state = { ...defaultState, ...loadedState };
+                    this.state.settings = { ...this.state.settings, ...(loadedState.settings || {}) }; // Ensure settings are merged
                     
-                    this.showToast(`Data loaded for ${this.monthNames[this.selectedDate.getMonth()]}. (${this.userRole} mode)`, "success");
-
-                } else if (this.isViewingCurrentMonth()) {
-                    this.showToast(`No file for current month. Creating from last month...`);
-                    const lastMonthDate = new Date(this.selectedDate);
-                    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-                    const lastMonthFilename = this._getFilenameForDate(lastMonthDate);
-
-                    const prevResponse = await gapi.client.drive.files.list({
-                        q: `name='${lastMonthFilename}' and trashed=false`,
-                        spaces: 'drive',
-                        fields: 'files(id)'
-                    });
-
-                    if (prevResponse.result.files && prevResponse.result.files.length > 0) {
-                        const prevFileId = prevResponse.result.files[0].id;
-                        const prevFileContentResponse = await gapi.client.drive.files.get({ fileId: prevFileId, alt: 'media' });
-                        const prevState = JSON.parse(prevFileContentResponse.body);
-                        
-                        this.state.rooms = prevState.rooms || [];
-                        this.state.tenants = prevState.tenants || [];
-                        this.state.leftTenants = prevState.leftTenants || [];
-                        this.state.settings = prevState.settings || this.state.settings;
-
-                        this.showToast(`Rolled over data from ${this.monthNames[lastMonthDate.getMonth()]}. Saving new file.`, 'success');
-                        await this.saveData();
-                    } else {
-                        this.showToast("No data file found. Starting fresh.", "success");
-                    }
-                     this.userRole = 'owner';
+                    this.showToast(`Data loaded. (${this.userRole} mode)`, "success");
                 } else {
-                    this.showToast(`No data file found for ${this.monthNames[this.selectedDate.getMonth()]} ${this.selectedDate.getFullYear()}.`, 'error');
+                    // No data file found, assume user is owner and will create it
+                    this.userRole = 'owner';
+                    this.showToast("No data file found. Starting fresh. (Owner mode)", "success");
+                    await this._findOrCreateAppFolder(); // Ensure folder exists for new data file
                 }
-            } catch (e) {
-                console.error("Error loading data:", e);
-                this.showToast("Failed to load data. File might be corrupted.", "error");
+            } catch (e) { 
+                console.error("Error loading data:", e); 
+                this.showToast("Failed to load data. You may not have permission, or file is corrupted.", "error"); 
+                if (!this.userRole) this.userRole = 'viewer';
             }
         },
 
         isOwner() { return this.userRole === 'owner'; },
 
         triggerAutoSave() {
-            if (!this.isOwner() || !this.isViewingCurrentMonth()) return;
+            if (!this.isOwner()) return; // Only owner can trigger saves
             clearTimeout(this.saveTimeout);
-            this.saveTimeout = setTimeout(() => this.saveData(), 2000);
+            this.saveTimeout = setTimeout(() => this.saveData(), 2000); // Debounce saves by 2 seconds
+        },
+        
+        // --- NEW HELPER FUNCTIONS FOR SAVING ---
+
+        async _findFileByName(fileName) {
+            try {
+                const response = await gapi.client.drive.files.list({
+                    q: `name='${fileName}' and '${this.appFolderId}' in parents and trashed=false`,
+                    spaces: 'drive',
+                    fields: 'files(id)'
+                });
+                if (response.result.files && response.result.files.length > 0) {
+                    return response.result.files[0].id; // Return the ID if found
+                }
+                return null; // Return null if not found
+            } catch (e) {
+                console.error(`Error finding file by name: ${fileName}`, e);
+                this.showToast(`Error accessing Drive to find ${fileName}.`, 'error');
+                throw e;
+            }
+        },
+
+        async _uploadFile(fileName, content, fileId) {
+            const boundary = '-------314159265358979323846';
+            const delimiter = "\r\n--" + boundary + "\r\n";
+            const close_delim = "\r\n--" + boundary + "--";
+            
+            let request;
+            const metadata = { 'name': fileName, 'mimeType': 'application/json' };
+
+            if (fileId) {
+                // UPDATE an existing file
+                const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify({}) + delimiter + 'Content-Type: application/json\r\n\r\n' + content + close_delim;
+                request = gapi.client.request({
+                    'path': `https://www.googleapis.com/upload/drive/v3/files/${fileId}`,
+                    'method': 'PATCH',
+                    'params': { 'uploadType': 'multipart' },
+                    'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+                    'body': multipartRequestBody
+                });
+            } else {
+                // CREATE a new file
+                metadata.parents = [this.appFolderId];
+                const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/json\r\n\r\n' + content + close_delim;
+                request = gapi.client.request({
+                    'path': 'https://www.googleapis.com/upload/drive/v3/files',
+                    'method': 'POST',
+                    'params': { 'uploadType': 'multipart' },
+                    'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+                    'body': multipartRequestBody
+                });
+            }
+            const response = await request;
+            return response.result.id;
         },
 
         async saveData() {
-            if (!this.isOwner() || this.isSaving || !this.isViewingCurrentMonth()) return;
+            if (!this.isOwner() || this.isSaving) return;
             this.isSaving = true;
             
+            const manualSaveBtn = document.getElementById('manual-save-btn');
+            let originalBtnText = '';
+            if (manualSaveBtn) {
+                originalBtnText = manualSaveBtn.textContent;
+                manualSaveBtn.disabled = true;
+                manualSaveBtn.textContent = 'Syncing...';
+            }
+            
             this.showToast("Saving data to Google Drive...");
-            if (!this.appFolderId) await this._findOrCreateAppFolder();
 
-            const filename = this._getFilenameForDate(this.selectedDate);
-            const dataToSave = JSON.stringify(this.state, null, 2);
+            try {
+                if (!this.appFolderId) await this._findOrCreateAppFolder();
+
+                const dataToSave = JSON.stringify(this.state, null, 2);
+
+                // --- 1. Save the main data file ---
+                const mainSavePromise = this._uploadFile(this.DATA_FILE_NAME, dataToSave, this.driveFileId)
+                    .then(fileId => {
+                        if (!this.driveFileId) { 
+                            this.driveFileId = fileId; 
+                            this.userRole = 'owner';
+                        }
+                    });
+
+                // --- 2. Save the monthly record file ---
+                const now = new Date();
+                const monthName = now.toLocaleString('default', { month: 'long' });
+                const year = now.getFullYear();
+                const monthlyFileName = this.MONTHLY_FILENAME_TEMPLATE(monthName, year);
+                
+                const monthlySavePromise = this._findFileByName(monthlyFileName)
+                    .then(monthlyFileId => {
+                        return this._uploadFile(monthlyFileName, dataToSave, monthlyFileId);
+                    });
+                
+                // --- Execute both save operations in parallel ---
+                await Promise.all([mainSavePromise, monthlySavePromise]);
+
+                this.showToast('Data & monthly record saved successfully!', 'success');
+
+            } catch (e) {
+                console.error("Error saving data:", e);
+                this.showToast("An error occurred during save. See console.", "error");
+            } finally {
+                this.isSaving = false;
+                if (manualSaveBtn) {
+                    manualSaveBtn.disabled = false;
+                    manualSaveBtn.textContent = originalBtnText;
+                }
+            }
+        },
+
+        async uploadPhotoToDrive(file) {
+            if (!file || file.size === 0) return ''; // No file selected
+
+            if (!this.appFolderId) {
+                await this._findOrCreateAppFolder(); // Ensure app folder exists
+            }
+
             const boundary = '-------314159265358979323846';
             const delimiter = "\r\n--" + boundary + "\r\n";
             const close_delim = "\r\n--" + boundary + "--";
 
-            try {
-                let request;
-                if (this.driveFileId) {
-                    const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify({}) + delimiter + 'Content-Type: application/json\r\n\r\n' + dataToSave + close_delim;
-                    request = gapi.client.request({
-                        'path': `https://www.googleapis.com/upload/drive/v3/files/${this.driveFileId}`, 'method': 'PATCH',
-                        'params': { 'uploadType': 'multipart' }, 'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, 'body': multipartRequestBody
-                    });
-                } else {
-                    const metadata = { 'name': filename, 'parents': [this.appFolderId], 'mimeType': 'application/json' };
-                    const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/json\r\n\r\n' + dataToSave + close_delim;
-                    request = gapi.client.request({
-                        'path': 'https://www.googleapis.com/upload/drive/v3/files', 'method': 'POST',
-                        'params': { 'uploadType': 'multipart', 'fields': 'id' }, 'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, 'body': multipartRequestBody
-                    });
-                }
-                const response = await request;
-                if (!this.driveFileId) { this.driveFileId = response.result.id; }
-                this.showToast('Data saved successfully!', 'success');
-            } catch (e) {
-                console.error("Error saving data:", e);
-                this.showToast("Failed to save data.", "error");
-            } finally {
-                this.isSaving = false;
-            }
+            const metadata = {
+                'name': `app_photo_${Date.now()}_${file.name}`,
+                'mimeType': file.type,
+                'parents': [this.appFolderId],
+            };
+
+            const reader = new FileReader();
+            return new Promise((resolve, reject) => {
+                reader.onload = async (e) => {
+                    const base64Data = e.target.result.split(',')[1];
+                    const multipartRequestBody =
+                        delimiter +
+                        'Content-Type: application/json\r\n\r\n' +
+                        JSON.stringify(metadata) +
+                        delimiter +
+                        'Content-Type: ' + file.type + '\r\n' +
+                        'Content-Transfer-Encoding: base64\r\n' +
+                        '\r\n' +
+                        base64Data +
+                        close_delim;
+
+                    try {
+                        const response = await gapi.client.request({
+                            'path': 'https://www.googleapis.com/upload/drive/v3/files',
+                            'method': 'POST',
+                            'params': { 'uploadType': 'multipart' },
+                            'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+                            'body': multipartRequestBody
+                        });
+                        // webContentLink provides a direct link to the content
+                        resolve(response.result.webContentLink); 
+                    } catch (error) {
+                        console.error("Error uploading photo to Drive:", error);
+                        this.showToast("Failed to upload photo.", "error");
+                        reject(error);
+                    }
+                };
+                reader.onerror = (error) => {
+                    reject(error);
+                };
+                reader.readAsDataURL(file); // Read as Base64 for multipart upload
+            });
         },
 
+        // --- UI & Event Handling ---
         navigateTo(v, id=null) { this.state.currentView=v;this.state.detailViewId=id;this.render(); },
         render() { const{currentView:v,detailViewId:id}=this.state;const m=document.getElementById('main-content-area');const k=v.includes('-')?v.split('-').map((p,i)=>i>0?p.charAt(0).toUpperCase()+p.slice(1):p).join(''):v;const f=this.templates[k];if(f)m.innerHTML=f.call(this,id);else m.innerHTML=`<p>Error: View '${v}' not found.</p>`;document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active',l.dataset.view===v.split('-')[0]));},
         addEventListeners() { 
@@ -425,147 +526,679 @@ function onGoogleScriptsLoaded() {
                 if(!t)return;
                 e.preventDefault();
                 const{action:a,view:v,id:i,modalType:m,itemType:it}=t.dataset;
+
+                // Restrict actions for viewers
                 const ownerActions = ['show-modal', 'delete-item', 'mark-tenant-left', 'report-meter-broken', 'install-new-meter', 'manual-save', 'settle-security-deposit'];
-                if (ownerActions.includes(a) && (!this.isOwner() || !this.isViewingCurrentMonth())) {
-                    this.showToast('This action is disabled for past months or in viewer mode.', 'error'); return;
+                if (ownerActions.includes(a) && !this.isOwner()) {
+                    this.showToast('Access Denied: You are in viewer mode.', 'error');
+                    return;
                 }
-                const A={'navigate':()=>this.navigateTo(v),'navigate-detail':()=>this.navigateTo(v,i),'show-modal':()=>this.showModal(m,i),'close-modal':()=>this.closeModal(),'delete-item':()=>{if(confirm(`Delete this ${it.replace('-',' ')}? This cannot be undone.`))this.deleteItem(it,i);},'mark-tenant-left':()=>{if(confirm('Are you sure this tenant has left? This will move them to the "Left Tenants" record.'))this.markTenantAsLeft(i);},'generate-receipt':()=>this.generateReceipt(i),'report-meter-broken':()=>{if(confirm('Report meter as broken?'))this.reportMeterBroken(i);},'install-new-meter':()=>this.installNewMeter(i),'share-receipt-whatsapp':()=>this.shareReceiptWhatsApp(i),'share-dues-whatsapp':()=>this.shareDuesWhatsApp(i),'manual-save':()=>this.saveData(),'settle-security-deposit':()=>this.showModal('settleSecurityDeposit',i),};
+
+                const A={
+                    'navigate':()=>this.navigateTo(v),
+                    'navigate-detail':()=>this.navigateTo(v,i),
+                    'show-modal':()=>this.showModal(m,i),
+                    'close-modal':()=>this.closeModal(),
+                    'delete-item':()=>{if(confirm(`Delete this ${it.replace('-',' ')}? This cannot be undone.`))this.deleteItem(it,i);},
+                    'mark-tenant-left':()=>{if(confirm('Are you sure this tenant has left? This will move them to the "Left Tenants" record.'))this.markTenantAsLeft(i);},
+                    'generate-receipt':()=>this.generateReceipt(i),
+                    'report-meter-broken':()=>{if(confirm('Report meter as broken?'))this.reportMeterBroken(i);},
+                    'install-new-meter':()=>this.installNewMeter(i),
+                    'share-receipt-whatsapp':()=>this.shareReceiptWhatsApp(i),
+                    'share-dues-whatsapp':()=>this.shareDuesWhatsApp(i),
+                    'manual-save':()=>this.saveData(),
+                    'settle-security-deposit': () => this.showModal('settleSecurityDeposit', i)
+                };
                 if(A[a])A[a]();
             });
+
             document.body.addEventListener('submit',e=>{
                 e.preventDefault();
-                if(!this.isOwner()||!this.isViewingCurrentMonth()){this.showToast('This action is disabled for past months or in viewer mode.','error');return;}
-                const h={'room-form':f=>this.handleRoomSubmit(f),'tenant-form':f=>this.handleTenantSubmit(f),'settings-form':f=>this.handleSettingsSubmit(f),'utility-form':f=>this.handleUtilitySubmit(f),'payment-form':f=>this.handlePaymentSubmit(f),'service-charge-form':f=>this.handleServiceChargeSubmit(f),'edit-room-form':f=>this.handleEditRoomSubmit(f),'edit-tenant-form':f=>this.handleEditTenantSubmit(f),'settle-security-deposit-form':f=>this.handleSettleSecurityDeposit(f,'refund'),};
+                if(!this.isOwner()){ // Prevent form submissions for viewers
+                    this.showToast('Access Denied: You are in viewer mode.', 'error');
+                    return;
+                }
+                const h={
+                    'room-form':f=>this.handleRoomSubmit(f),
+                    'tenant-form':f=>this.handleTenantSubmit(f),
+                    'settings-form':f=>this.handleSettingsSubmit(f),
+                    'utility-form':f=>this.handleUtilitySubmit(f),
+                    'payment-form':f=>this.handlePaymentSubmit(f),
+                    'service-charge-form':f=>this.handleServiceChargeSubmit(f),
+                    'edit-room-form':f=>this.handleEditRoomSubmit(f),
+                    'edit-tenant-form':f=>this.handleEditTenantSubmit(f),
+                    'settle-security-deposit-form': f => this.handleSettleSecurityDeposit(f)
+                };
                 if(h[e.target.id])h[e.target.id](e.target);
             });
+
             document.body.addEventListener('change',e=>{
-                if(e.target.matches('input[type="file"]')&&e.target.id!=='import-file-input')this.previewPhoto(e);
-                if(e.target.id === 'month-selector') { const [year, month] = e.target.value.split('-').map(Number); this.switchMonth(year, month); }
+                if(e.target.matches('input[type="file"]')&&e.target.id!=='import-file-input')this.previewPhoto(e); 
+                if(e.target.id === 'dashboard-filter'){ this.state.dashboardFilter = e.target.value; this.render(); }
             });
         },
         
+        // --- TEMPLATES (with Role-Based UI & New Features) ---
         templates: {
-            _getMonthSelector() {
-                let options = '';
-                let date = new Date();
-                for (let i = 0; i < 24; i++) {
-                    const month = date.getMonth();
-                    const year = date.getFullYear();
-                    const isSelected = (year === this.selectedDate.getFullYear() && month === this.selectedDate.getMonth());
-                    options += `<option value="${year}-${month}" ${isSelected ? 'selected' : ''}>${this.monthNames[month]} ${year}</option>`;
-                    date.setMonth(date.getMonth() - 1);
-                }
-                return `<select id="month-selector" style="padding: 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem;">${options}</select>`;
-            },
             dashboard() {
-                const { dues, payments, tenants, rooms, settings } = this.state;
-                const monthIncome = (payments || []).reduce((s, p) => s + p.amount, 0);
+                const { dues, payments, tenants, rooms, settings, dashboardFilter } = this.state;
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth();
+
+                let filteredPayments = [];
+                let filterLabel = "This Month's";
+                if (dashboardFilter === 'this_month') {
+                    filteredPayments = (payments || []).filter(p => { const pDate = new Date(p.date); return pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth; });
+                } else if (dashboardFilter === 'last_month') {
+                    const lastMonthDate = new Date(now); lastMonthDate.setMonth(currentMonth - 1);
+                    const lastMonthYear = lastMonthDate.getFullYear(); const lastMonth = lastMonthDate.getMonth();
+                    filteredPayments = (payments || []).filter(p => { const pDate = new Date(p.date); return pDate.getFullYear() === lastMonthYear && pDate.getMonth() === lastMonth; });
+                    filterLabel = "Last Month's";
+                } else { // all_time
+                    filteredPayments = payments || [];
+                    filterLabel = "Total";
+                }
+                const filteredIncome = filteredPayments.reduce((s, p) => s + p.amount, 0);
+                const totalElecBill = (payments || []).filter(p => p.category === 'Electricity').reduce((acc, p) => acc + p.amount, 0);
+
                 const o = (rooms || []).length > 0 ? (((tenants || []).length / (rooms || []).length) * 100).toFixed(0) : 0;
                 const tD = (tenants || []).reduce((total, t) => {
                     const tdues = (dues || []).filter(d => d.tenantId === t.id).reduce((s, d) => s + d.amount, 0);
                     const tpmts = (payments || []).filter(p => p.tenantId === t.id && p.category !== 'Security Deposit (Paid)' && p.category !== 'Security Deposit (Refunded)' && p.category !== 'Security Deposit (Adjusted)').reduce((s, p) => s + p.amount, 0);
-                    return total + Math.max(0, tdues - tpmts);
+                    return total + Math.max(0, tdues - tpmts)
                 }, 0);
                 const u = (tenants || []).filter(t => !t.isVerified);
                 let aH = u.map(t => `<div class="alert-item warning" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">${t.name}'s verification is pending. <span>View →</span></div>`).join('');
-                const canEdit = this.isOwner() && this.isViewingCurrentMonth();
-                const quickActions = canEdit ? `<button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>` : `<p style="text-align:center;color:var(--text-light)"><i>Viewing historical data. Actions are disabled.</i></p>`;
+                
+                const tenantsWithDues = (tenants || [])
+                    .map(tenant => ({ ...tenant, balance: (dues || []).filter(d => d.tenantId === tenant.id).reduce((s, d) => s + d.amount, 0) - (payments || []).filter(p => p.tenantId === tenant.id && p.category !== 'Security Deposit (Paid)' && p.category !== 'Security Deposit (Refunded)' && p.category !== 'Security Deposit (Adjusted)').reduce((s, p) => s + p.amount, 0) }))
+                    .filter(tenant => tenant.balance > 0).sort((a, b) => b.balance - a.balance);
+
+                const tenantDuesSection = tenantsWithDues.length > 0 ? `<div class="dashboard-section" style="margin-top: 1.5rem;"><h3>Pending Dues by Tenant</h3><div id="tenant-dues-list">${tenantsWithDues.map(t => `<div class="alert-item danger" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><span>${t.name}</span><strong>${settings.currencySymbol}${t.balance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></div>`).join('')}</div></div>` : '';
+                const quickActions = this.isOwner() ? `<button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>` : `<p style="text-align:center;color:var(--text-light)"><i>View-only mode.</i></p>`;
                 
                 return `<div id="dashboard" class="view active">
                     <div class="section-header">
                         <h2 class="section-title">Dashboard</h2>
-                        <div class="header-actions">${this.templates._getMonthSelector.call(this)}</div>
+                        <div class="header-actions">
+                            <select id="dashboard-filter" style="padding: 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem;">
+                                <option value="this_month" ${dashboardFilter === 'this_month' ? 'selected' : ''}>This Month</option>
+                                <option value="last_month" ${dashboardFilter === 'last_month' ? 'selected' : ''}>Last Month</option>
+                                <option value="all_time" ${dashboardFilter === 'all_time' ? 'selected' : ''}>All Time</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="metric-boxes grid-container">
-                        <div class="metric-box"><h3>Month's Income</h3><div class="metric-value">${settings.currencySymbol}${monthIncome.toLocaleString('en-IN')}</div></div>
-                        <div class="metric-box"><h3>Month's Pending Dues</h3><div class="metric-value">${settings.currencySymbol}${tD.toLocaleString('en-IN')}</div></div>
+                        <div class="metric-box"><h3>${filterLabel} Income</h3><div class="metric-value">${settings.currencySymbol}${filteredIncome.toLocaleString('en-IN')}</div></div>
+                        <div class="metric-box"><h3>Total Pending Dues</h3><div class="metric-value">${settings.currencySymbol}${tD.toLocaleString('en-IN')}</div></div>
                         <div class="metric-box"><h3>Occupancy</h3><div class="metric-value">${o}%</div></div>
                         <div class="metric-box"><h3>Unverified Tenants</h3><div class="metric-value">${u.length}</div></div>
+                        <div class="metric-box"><h3>Total Electricity Income</h3><div class="metric-value">${settings.currencySymbol}${totalElecBill.toLocaleString('en-IN')}</div></div>
                     </div>
                     <div class="detail-grid" style="margin-top:2rem;">
-                        <div class="dashboard-section"><h3>System Alerts</h3><div id="alert-list">${aH || '<p>No system alerts for this month.</p>'}</div></div>
+                        <div class="dashboard-section">
+                            <h3>System Alerts</h3><div id="alert-list">${aH || '<p>No system alerts.</p>'}</div>
+                        </div>
                         <div class="dashboard-section"><h3>Quick Actions</h3>${quickActions}</div>
+                    </div>
+                    ${tenantDuesSection}
+                </div>`;
+            },
+            rooms() { const addRoomBtn=this.isOwner()?`<button class="action-btn btn-primary" data-action="show-modal" data-modal-type="addRoom">Add Room</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Rooms</h2>${addRoomBtn}</div><div class="grid-container">${(this.state.rooms||[]).map(r=>`<div class="data-card" data-action="navigate-detail" data-view="room-detail" data-id="${r.id}"><div class="card-photo" style="background-image:url(${r.photo||''})"><span class="card-status status-${r.status}">${r.status}</span></div><div class="card-content"><h3 class="card-title">Room ${r.number}</h3><p class="card-info">Rent: ${this.state.settings.currencySymbol}${r.rent}/month</p><p class="card-info">Tenant: ${(this.state.tenants||[]).find(t=>t.id===r.tenantId)?.name||'<i>Vacant</i>'}</p></div></div>`).join('')||'<p>No rooms found.</p>'}</div></div>`;},
+            tenants() { const addTenantBtn=this.isOwner()?`<button class="action-btn btn-secondary" data-action="show-modal" data-modal-type="addTenant">Add Tenant</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Current Tenants</h2>${addTenantBtn}</div><div class="grid-container">${(this.state.tenants||[]).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"><span class="card-status" style="color:${t.isVerified?'green':'red'}">${t.isVerified?'Verified':'Not Verified'}</span></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Phone: ${t.phone}</p></div></div>`).join('')||'<p>No current tenants found.</p>'}</div></div>`;},
+            leftTenants() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div><div class="grid-container">${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" style="opacity: 0.8;"><div class="card-photo" style="background-image:url(${t.photo||''})"></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room Occupied: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Left On: ${new Date(t.leaveDate).toLocaleDateString()}</p></div></div>`).join('')||'<p>No records of left tenants.</p>'}</div></div>`; },
+            settings() { 
+                const o = this.isOwner();
+                const saveSection = o ? `<div class="detail-card" style="max-width:500px;margin-top:2rem;">
+                                            <h4>Data Synchronization</h4>
+                                            <p style="margin-bottom:1rem;color:var(--text-light)">Manually save all current data to your Google Drive. The app also saves automatically. This will update both the main data file and the record file for the current month.</p>
+                                            <button id="manual-save-btn" class="action-btn btn-secondary" data-action="manual-save">Sync Data to Drive</button>
+                                         </div>` : '';
+                return `<div class="view active">
+                            <div class="section-header"><h2 class="section-title">Settings</h2></div>
+                            <div class="detail-card" style="max-width:500px;">
+                                <form id="settings-form">
+                                    <h4>General Settings</h4>
+                                    <div class="form-group">
+                                        <label>Electricity Rate (per unit)</label>
+                                        <input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}" ${!o?'readonly':''}>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Currency Symbol</label>
+                                        <input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}" ${!o?'readonly':''}>
+                                    </div>
+                                    <div class="form-actions">${o?'<button type="submit" class="action-btn btn-primary">Save Settings</button>':''}</div>
+                                </form>
+                            </div>
+                            ${saveSection}
+                        </div>`;
+            },
+            roomDetail(id) { 
+                const r=(this.state.rooms||[]).find(rm=>rm.id===id);
+                if(!r)return`<p>Room not found.</p>`;
+                const t=(this.state.tenants||[]).find(tn=>tn.id===r.tenantId);
+                const rd=(this.state.utilityReadings||[]).filter(ur=>ur.roomId===id&&ur.meterInstallationId===r.meterInstallationId).sort((a,b)=>new Date(b.date)-new Date(a.date));
+                const o=this.isOwner();
+                
+                const headerActions = o ? `<button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editRoom" data-id="${id}">Edit</button>` : ``;
+                const deleteButton = o ? `<button class="action-btn btn-danger" data-action="delete-item" data-item-type="room" data-id="${id}">Delete</button>` : ``;
+                
+                let meterManagement = o ? 
+                    (r.meterStatus === 'broken' ? 
+                        `<button class="action-btn btn-warning" data-action="install-new-meter" data-id="${id}">Install New</button>` : 
+                        `<button class="action-btn btn-danger" data-action="report-meter-broken" data-id="${id}">Report Broken</button>`) : 
+                    `<p>Status: <strong>${r.meterStatus}</strong></p>`;
+                
+                const utilityForm = o ? `<div class="detail-card"><h4>Add Utility Reading</h4><form id="utility-form" data-room-id="${id}"><div class="form-group"><label>New Meter Reading</label><input type="number" id="meter-reading" required ${r.meterStatus==='broken'?'disabled':''}></div><button type="submit" class="action-btn btn-secondary" style="width:100%" ${r.meterStatus==='broken'?'disabled':''}>Generate Bill</button></form></div>` : '';
+
+                return `<div class="view active">
+                    <div class="section-header">
+                        <div class="header-actions">
+                            <button class="action-btn btn-cancel" data-action="navigate" data-view="rooms">← Back</button>
+                            ${headerActions}
+                        </div>
+                        ${deleteButton}
+                    </div>
+                    <div class="detail-view-header">
+                        <div class="detail-photo" style="background-image: url(${r.photo||''})"></div>
+                        <div class="detail-info">
+                            <h2>Room ${r.number}</h2>
+                            <p>Status: ${r.status}</p>
+                            <p>Tenant: ${t?t.name:'Vacant'}</p>
+                        </div>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-main">
+                            <div class="detail-card">
+                                <h4>Room Information</h4>
+                                <ul>
+                                    <li><span>Monthly Rent</span><strong>${this.state.settings.currencySymbol}${r.rent}</strong></li>
+                                    <li><span>Meter Status</span><strong>${r.meterStatus}</strong></li>
+                                </ul>
+                            </div>
+                            <div class="detail-card">
+                                <h4>Utility Readings</h4>
+                                <div>${rd.map(r=>`<p><strong>${new Date(r.date).toLocaleDateString()}</strong> - ${r.reading} units</p>`).join('')||'<p>No readings for this meter.</p>'}</div>
+                            </div>
+                        </div>
+                        <div class="detail-sidebar">
+                            <div class="detail-card">
+                                <h4>Meter Management</h4>
+                                ${meterManagement}
+                            </div>
+                            ${utilityForm}
+                        </div>
                     </div>
                 </div>`;
             },
-            rooms() {
-                const canEdit = this.isOwner() && this.isViewingCurrentMonth();
-                const addRoomBtn = canEdit ? `<button class="action-btn btn-primary" data-action="show-modal" data-modal-type="addRoom">Add Room</button>` : ``;
-                return `<div class="view active"><div class="section-header"><h2 class="section-title">Rooms</h2>${addRoomBtn}</div><div class="grid-container">${(this.state.rooms||[]).map(r=>`<div class="data-card" data-action="navigate-detail" data-view="room-detail" data-id="${r.id}"><div class="card-photo" style="background-image:url(${r.photo||''})"><span class="card-status status-${r.status}">${r.status}</span></div><div class="card-content"><h3 class="card-title">Room ${r.number}</h3><p class="card-info">Rent: ${this.state.settings.currencySymbol}${r.rent}/month</p><p class="card-info">Tenant: ${(this.state.tenants||[]).find(t=>t.id===r.tenantId)?.name||'<i>Vacant</i>'}</p></div></div>`).join('')||'<p>No rooms found for this month.</p>'}</div></div>`;
-            },
-            tenants() {
-                const canEdit = this.isOwner() && this.isViewingCurrentMonth();
-                const addTenantBtn = canEdit ? `<button class="action-btn btn-secondary" data-action="show-modal" data-modal-type="addTenant">Add Tenant</button>` : ``;
-                return `<div class="view active"><div class="section-header"><h2 class="section-title">Current Tenants</h2>${addTenantBtn}</div><div class="grid-container">${(this.state.tenants||[]).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"><span class="card-status" style="color:${t.isVerified?'green':'red'}">${t.isVerified?'Verified':'Not Verified'}</span></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Phone: ${t.phone}</p></div></div>`).join('')||'<p>No current tenants found for this month.</p>'}</div></div>`;
-            },
-            leftTenants() {
-                return `<div class="view active"><div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div><div class="grid-container">${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" style="opacity: 0.8;"><div class="card-photo" style="background-image:url(${t.photo||''})"></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room Occupied: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Left On: ${new Date(t.leaveDate).toLocaleDateString()}</p></div></div>`).join('')||'<p>No records of left tenants.</p>'}</div></div>`;
-            },
-            settings() {
-                const canEdit = this.isOwner();
-                const saveSection = this.isOwner() ? `<div class="detail-card" style="max-width:500px;margin-top:2rem;"><h4>Data Synchronization</h4><p style="margin-bottom:1rem;color:var(--text-light)">Manually save all current data for this month to your Google Drive.</p><button id="manual-save-btn" class="action-btn btn-secondary" data-action="manual-save" ${!this.isViewingCurrentMonth() ? 'disabled' : ''}>Sync Data to Drive</button></div>` : '';
-                return `<div class="view active"><div class="section-header"><h2 class="section-title">Settings</h2></div><div class="detail-card" style="max-width:500px;"><form id="settings-form"><h4>General Settings</h4><div class="form-group"><label>Electricity Rate (per unit)</label><input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}" ${!canEdit?'readonly':''}></div><div class="form-group"><label>Currency Symbol</label><input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}" ${!canEdit?'readonly':''}></div><div class="form-actions">${canEdit?'<button type="submit" class="action-btn btn-primary">Save Settings</button>':''}</div></form></div>${saveSection}</div>`;
-            },
-            roomDetail(id) { 
-                const r=(this.state.rooms||[]).find(rm=>rm.id===id); if(!r)return`<p>Room not found.</p>`;
-                const t=(this.state.tenants||[]).find(tn=>tn.id===r.tenantId);
-                const rd=(this.state.utilityReadings||[]).filter(ur=>ur.roomId===id&&ur.meterInstallationId===r.meterInstallationId).sort((a,b)=>new Date(b.date)-new Date(a.date));
-                const canEdit = this.isOwner() && this.isViewingCurrentMonth();
-                const headerActions = canEdit ? `<button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editRoom" data-id="${id}">Edit</button>` : ``;
-                const deleteButton = canEdit ? `<button class="action-btn btn-danger" data-action="delete-item" data-item-type="room" data-id="${id}">Delete</button>` : ``;
-                let meterManagement = canEdit ? (r.meterStatus === 'broken' ? `<button class="action-btn btn-warning" data-action="install-new-meter" data-id="${id}">Install New</button>` : `<button class="action-btn btn-danger" data-action="report-meter-broken" data-id="${id}">Report Broken</button>`) : `<p>Status: <strong>${r.meterStatus}</strong></p>`;
-                const utilityForm = canEdit ? `<div class="detail-card"><h4>Add Utility Reading</h4><form id="utility-form" data-room-id="${id}"><div class="form-group"><label>New Meter Reading</label><input type="number" id="meter-reading" required ${r.meterStatus==='broken'?'disabled':''}></div><button type="submit" class="action-btn btn-secondary" style="width:100%" ${r.meterStatus==='broken'?'disabled':''}>Generate Bill</button></form></div>` : '';
-                return `<div class="view active"><div class="section-header"><div class="header-actions"><button class="action-btn btn-cancel" data-action="navigate" data-view="rooms">← Back</button>${headerActions}</div>${deleteButton}</div><div class="detail-view-header"><div class="detail-photo" style="background-image: url(${r.photo||''})"></div><div class="detail-info"><h2>Room ${r.number}</h2><p>Status: ${r.status}</p><p>Tenant: ${t?t.name:'Vacant'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Room Information</h4><ul><li><span>Monthly Rent</span><strong>${this.state.settings.currencySymbol}${r.rent}</strong></li><li><span>Meter Status</span><strong>${r.meterStatus}</strong></li></ul></div><div class="detail-card"><h4>Utility Readings</h4><div>${rd.map(r=>`<p><strong>${new Date(r.date).toLocaleDateString()}</strong> - ${r.reading} units</p>`).join('')||'<p>No readings for this meter.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Meter Management</h4>${meterManagement}</div>${utilityForm}</div></div></div>`;
-            },
             tenantDetail(id) { 
-                const t=(this.state.tenants||[]).find(tn=>tn.id===id);if(!t)return`<p>Tenant not found.</p>`;
-                const r=(this.state.rooms||[]).find(rm=>rm.id===t.roomId); const d=(this.state.dues||[]).filter(du=>du.tenantId===id); const p=(this.state.payments||[]).filter(pm=>pm.tenantId===id);
-                const currentDuesTotal=d.reduce((s,du)=>s+du.amount,0); const currentPaymentsTotal=p.filter(pm=>pm.category!=='Security Deposit (Paid)'&&pm.category!=='Security Deposit (Refunded)'&&pm.category!=='Security Deposit (Adjusted)').reduce((s,pm)=>s+pm.amount,0);
-                const balance=currentDuesTotal-currentPaymentsTotal;
-                const sdPaid=p.filter(pm=>pm.category==='Security Deposit (Paid)').reduce((s,pm)=>s+pm.amount,0); const sdRefunded=p.filter(pm=>pm.category==='Security Deposit (Refunded)').reduce((s,pm)=>s+pm.amount,0); const sdAdjusted=p.filter(pm=>pm.category==='Security Deposit (Adjusted)').reduce((s,pm)=>s+pm.amount,0);
-                const currentSDBalance=sdPaid-sdRefunded-sdAdjusted;
+                const t=(this.state.tenants||[]).find(tn=>tn.id===id);
+                if(!t)return`<p>Tenant not found.</p>`;
+                const r=(this.state.rooms||[]).find(rm=>rm.id===t.roomId);
+                const d=(this.state.dues||[]).filter(du=>du.tenantId===id);
+                const p=(this.state.payments||[]).filter(pm=>pm.tenantId===id);
+                
+                // Calculate current due balance (excluding security deposit movements)
+                const currentDuesTotal = d.reduce((s,du)=>s+du.amount,0);
+                const currentPaymentsTotal = p.filter(pm => 
+                    pm.category !== 'Security Deposit (Paid)' && 
+                    pm.category !== 'Security Deposit (Refunded)' &&
+                    pm.category !== 'Security Deposit (Adjusted)'
+                ).reduce((s,pm)=>s+pm.amount,0);
+                const balance = currentDuesTotal - currentPaymentsTotal;
+
+                // Calculate current security deposit balance
+                const sdPaid = p.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+                const sdRefunded = p.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+                const sdAdjusted = p.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+                const currentSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
                 const trs=[...d.map(du=>({...du,isDue:true})),...p.map(pm=>({...pm,isPayment:true}))].sort((a,b)=>new Date(b.date)-new Date(a.date));
+                
                 const wS=`<svg viewBox="0 0 24 24"><path d="M16.75 13.96c.25.13.42.2.46.28.05.08.05.38-.02.75-.07.37-.52.68-.97.75-.45.07-1.03.22-1.57-.12-.54-.33-1.12-.78-1.8-1.38-.95-.83-1.63-1.85-1.7-2.03-.07-.18-.54-1.08.2-1.33.6-.2.95-.12 1.18.06.23.18.35.45.4.53.05.08.08.13.03.28-.05.15-.12.28-.23.4-.1.13-.18.18-.3.28-.13.1-.2.15-.28.25s-.12.18-.03.3.4.65.78 1.03c.53.5 1.12.83 1.33.9.2.08.33.05.43-.03.1-.08.43-.5.53-.65.1-.15.18-.13.28-.08zM12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>`;
-                const canEdit = this.isOwner() && this.isViewingCurrentMonth();
-                const headerActions=canEdit?`<button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editTenant" data-id="${id}">Edit</button>`:``;
-                const deleteAndArchiveBtn=canEdit?`<button class="action-btn btn-danger" data-action="mark-tenant-left" data-id="${id}">Mark as Left</button>`:``;
-                const paymentForm=canEdit?`<div class="detail-card"><h4>Add Payment</h4><form id="payment-form" data-tenant-id="${id}"><div class="form-group"><label>Amount Paid</label><input type="number" id="payment-amount" required></div><div class="form-group"><label>For</label><select id="payment-category" required><option value="Rent">Rent</option><option value="Electricity">Electricity</option><option value="Other">Other</option></select></div><button type="submit" class="action-btn btn-secondary" style="width:100%">Record Payment</button></form></div>`:``;
-                const serviceChargeForm=canEdit?`<div class="detail-card"><h4>Add Service Charge</h4><form id="service-charge-form" data-tenant-id="${id}"><div class="form-group"><label>Description</label><input type="text" id="charge-desc" required></div><div class="form-group"><label>Amount</label><input type="number" id="charge-amount" required></div><button type="submit" class="action-btn btn-warning" style="width:100%">Add Charge</button></form></div>`:``;
-                const settleSDButton=canEdit&¤tSDBalance>0?`<button class="action-btn btn-primary" data-action="settle-security-deposit" data-id="${id}">Settle Security Deposit</button>`:``;
-                return`<div class="view active"><div class="section-header"><div class="header-actions"><button class="action-btn btn-cancel" data-action="navigate" data-view="tenants">← Back</button>${headerActions}</div><div class="header-actions">${deleteAndArchiveBtn}</div></div><div class="detail-view-header"><div class="detail-photo" style="background-image:url(${t.photo||''})"></div><div class="detail-info"><h2>${t.name}</h2><p>Room ${r?.number||'N/A'}</p><p>${t.isVerified?'✔ Verified':'✖ Not Verified'}</p></div></div><div class="detail-grid"><div class="detail-main"><div class="detail-card"><h4>Security Deposit</h4><ul><li><span>Initial Deposit</span><strong>${this.state.settings.currencySymbol}${(t.initialSecurityDeposit||0).toLocaleString('en-IN')}</strong></li><li><span>Current Balance</span><strong>${this.state.settings.currencySymbol}${currentSDBalance.toLocaleString('en-IN')}</strong></li></ul><div style="margin-top:1rem;">${settleSDButton}</div></div><div class="detail-card"><h4>Transactions (${this.monthNames[this.selectedDate.getMonth()]})</h4>${balance>0?`<div class="alert-item danger">Balance: <strong>${this.state.settings.currencySymbol}${balance.toLocaleString('en-IN')}</strong></div>`:`<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared for this month.</div>`}<div id="transaction-list">${trs.map(tr=>`<div class="transaction-item ${tr.isDue?'due':'payment'}"><div><p><strong>${tr.isDue?'-':'+'}${this.state.settings.currencySymbol}${tr.amount.toLocaleString('en-IN')}</strong> - ${tr.description||tr.category}</p><p style="font-size:0.9rem;color:var(--text-light)">${new Date(tr.date).toLocaleDateString()}</p></div>${tr.isPayment?`<div class="transaction-actions"><button class="action-btn btn-cancel" data-action="generate-receipt" data-id="${tr.id}">Receipt</button><button class="action-btn btn-whatsapp btn-icon" data-action="share-receipt-whatsapp" data-id="${tr.id}">${wS}</button></div>`:''}</div>`).join('')||'<p>No transactions for this month.</p>'}</div></div></div><div class="detail-sidebar"><div class="detail-card"><h4>Contact & Info</h4><ul><li><span>Phone</span><strong>${t.phone}</strong></li><li><span>Move-in Date</span><strong>${new Date(t.moveInDate).toLocaleDateString()}</strong></li></ul></div><div class="detail-card"><h4>Communication</h4><button class="action-btn btn-whatsapp" style="width:100%" data-action="share-dues-whatsapp" data-id="${id}">Send Dues Reminder</button></div>${paymentForm}${serviceChargeForm}</div></div></div>`; 
+                const o=this.isOwner();
+                
+                const headerActions = o ? `<button class="action-btn btn-warning" data-action="show-modal" data-modal-type="editTenant" data-id="${id}">Edit</button>` : ``;
+                const deleteAndArchiveBtn = o ? `<button class="action-btn btn-danger" data-action="mark-tenant-left" data-id="${id}">Mark as Left</button>` : ``;
+                
+                const paymentForm = o ? `<div class="detail-card"><h4>Add Payment</h4><form id="payment-form" data-tenant-id="${id}"><div class="form-group"><label>Amount Paid</label><input type="number" id="payment-amount" required></div><div class="form-group"><label>For</label><select id="payment-category" required><option value="Rent">Rent</option><option value="Electricity">Electricity</option><option value="Other">Other</option></select></div><button type="submit" class="action-btn btn-secondary" style="width:100%">Record Payment</button></form></div>` : ``;
+                const serviceChargeForm = o ? `<div class="detail-card"><h4>Add Service Charge</h4><form id="service-charge-form" data-tenant-id="${id}"><div class="form-group"><label>Description</label><input type="text" id="charge-desc" required></div><div class="form-group"><label>Amount</label><input type="number" id="charge-amount" required></div><button type="submit" class="action-btn btn-warning" style="width:100%">Add Charge</button></form></div>` : ``;
+                
+                const settleSDButton = o && currentSDBalance > 0 ? `<button class="action-btn btn-primary" data-action="settle-security-deposit" data-id="${id}">Settle Security Deposit</button>` : '';
+
+                return`<div class="view active">
+                    <div class="section-header">
+                        <div class="header-actions">
+                            <button class="action-btn btn-cancel" data-action="navigate" data-view="tenants">← Back</button>
+                            ${headerActions}
+                        </div>
+                        <div class="header-actions">${deleteAndArchiveBtn}</div>
+                    </div>
+                    <div class="detail-view-header">
+                        <div class="detail-photo" style="background-image:url(${t.photo||''})"></div>
+                        <div class="detail-info">
+                            <h2>${t.name}</h2>
+                            <p>Room ${r?.number||'N/A'}</p>
+                            <p>${t.isVerified?'✔ Verified':'✖ Not Verified'}</p>
+                        </div>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-main">
+                            <div class="detail-card">
+                                <h4>Security Deposit</h4>
+                                <ul>
+                                    <li><span>Initial Deposit</span><strong>${this.state.settings.currencySymbol}${(t.initialSecurityDeposit || 0).toLocaleString('en-IN')}</strong></li>
+                                    <li><span>Current Balance</span><strong>${this.state.settings.currencySymbol}${currentSDBalance.toLocaleString('en-IN')}</strong></li>
+                                </ul>
+                                <div style="margin-top:1rem;">${settleSDButton}</div>
+                            </div>
+                            <div class="detail-card">
+                                <h4>Transactions</h4>
+                                ${balance>0?`<div class="alert-item danger">Balance: <strong>${this.state.settings.currencySymbol}${balance.toLocaleString('en-IN')}</strong></div>`:`<div class="alert-item" style="background-color:#d1fae5;color:#065f46">All dues cleared.</div>`}
+                                <div id="transaction-list">
+                                    ${trs.map(tr=>`<div class="transaction-item ${tr.isDue?'due':'payment'}">
+                                        <div>
+                                            <p><strong>${tr.isDue?'-':'+'}${this.state.settings.currencySymbol}${tr.amount.toLocaleString('en-IN')}</strong> - ${tr.description||tr.category}</p>
+                                            <p style="font-size:0.9rem;color:var(--text-light)">${new Date(tr.date).toLocaleDateString()}</p>
+                                        </div>
+                                        ${tr.isPayment?`<div class="transaction-actions"><button class="action-btn btn-cancel" data-action="generate-receipt" data-id="${tr.id}">Receipt</button><button class="action-btn btn-whatsapp btn-icon" data-action="share-receipt-whatsapp" data-id="${tr.id}">${wS}</button></div>`:''}
+                                    </div>`).join('')||'<p>No transactions.</p>'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-sidebar">
+                            <div class="detail-card">
+                                <h4>Contact & Info</h4>
+                                <ul>
+                                    <li><span>Phone</span><strong>${t.phone}</strong></li>
+                                    <li><span>Move-in Date</span><strong>${new Date(t.moveInDate).toLocaleDateString()}</strong></li>
+                                </ul>
+                            </div>
+                            <div class="detail-card">
+                                <h4>Communication</h4>
+                                <button class="action-btn btn-whatsapp" style="width:100%" data-action="share-dues-whatsapp" data-id="${id}">Send Dues Reminder</button>
+                            </div>
+                            ${paymentForm}
+                            ${serviceChargeForm}
+                        </div>
+                    </div>
+                </div>`; 
             },
         },
         
-        async _findOrCreateAppFolder() { if (this.appFolderId) return this.appFolderId; try { let res = await gapi.client.drive.files.list({ q: `name='${this.APP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`, spaces: 'drive', fields: 'files(id)' }); if (res.result.files && res.result.files.length > 0) { this.appFolderId = res.result.files[0].id; } else { let folder = { 'name': this.APP_FOLDER_NAME, 'mimeType': 'application/vnd.google-apps.folder' }; res = await gapi.client.drive.files.create({ resource: folder, fields: 'id' }); this.appFolderId = res.result.id; } return this.appFolderId; } catch (e) { console.error('Error finding/creating app folder:', e); this.showToast('Could not access Drive folder.', 'error'); throw e; } },
-        async uploadPhotoToDrive(file) { if (!file || file.size === 0) return ''; if (!this.appFolderId) { await this._findOrCreateAppFolder(); } const boundary = '-------314159265358979323846'; const delimiter = "\r\n--" + boundary + "\r\n"; const close_delim = "\r\n--" + boundary + "--"; const metadata = { 'name': `app_photo_${Date.now()}_${file.name}`, 'mimeType': file.type, 'parents': [this.appFolderId], }; const reader = new FileReader(); return new Promise((resolve, reject) => { reader.onload = async (e) => { const base64Data = e.target.result.split(',')[1]; const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: ' + file.type + '\r\n' + 'Content-Transfer-Encoding: base64\r\n' + '\r\n' + base64Data + close_delim; try { const response = await gapi.client.request({ 'path': 'https://www.googleapis.com/upload/drive/v3/files', 'method': 'POST', 'params': { 'uploadType': 'multipart', 'fields': 'id,webContentLink' }, 'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, 'body': multipartRequestBody }); resolve(response.result.webContentLink); } catch (error) { console.error("Error uploading photo to Drive:", error); this.showToast("Failed to upload photo.", "error"); reject(error); } }; reader.onerror = (error) => { reject(error); }; reader.readAsDataURL(file); }); },
-        showModal(type, id = null) { const mC=document.getElementById('modal-container');let mH='';if(type==='addRoom'){mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;}else if(type==='editRoom'){const r=(this.state.rooms||[]).find(rm=>rm.id===id);if(!r)return;mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}"></div><div class="form-group"><label>Room Photo (leave blank to keep)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'};"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;}else if(type==='addTenant'){const aR=(this.state.rooms||[]).filter(r=>r.status==='available');mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="0"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;}else if(type==='editTenant'){const t=(this.state.tenants||[]).find(tn=>tn.id===id);if(!t)return;const cR=(this.state.rooms||[]).find(r=>r.id===t.roomId),aR=(this.state.rooms||[]).filter(r=>r.status==='available'),rO=[cR,...aR].filter(Boolean),uRO=[...new Map(rO.map(i=>[i['id'],i])).values()];mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="${t.initialSecurityDeposit||0}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (leave blank to keep)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'};"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;}else if(type==='settleSecurityDeposit'){const p=(this.state.payments||[]).filter(p=>p.tenantId===id);const sdp=p.filter(pm=>pm.category==='Security Deposit (Paid)').reduce((s,pm)=>s+pm.amount,0);const sdr=p.filter(pm=>pm.category==='Security Deposit (Refunded)').reduce((s,pm)=>s+pm.amount,0);const sda=p.filter(pm=>pm.category==='Security Deposit (Adjusted)').reduce((s,pm)=>s+pm.amount,0);const cSDB=sdp-sdr-sda;const d=(this.state.dues||[]).filter(d=>d.tenantId===id);const pExclSD=p.filter(pm=>pm.category!=='Security Deposit (Paid)'&&pm.category!=='Security Deposit (Refunded)'&&pm.category!=='Security Deposit (Adjusted)');const cDB=d.reduce((s,d)=>s+d.amount,0)-pExclSD.reduce((s,p)=>s+p.amount,0);mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Settle Security Deposit</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="settle-security-deposit-form" data-tenant-id="${id}"><p style="margin-bottom:1rem;">Current Security Deposit Balance: <strong>${this.state.settings.currencySymbol}${cSDB.toLocaleString('en-IN')}</strong></p><p style="margin-bottom:1rem;">Current Pending Dues: <strong>${this.state.settings.currencySymbol}${Math.max(0,cDB).toLocaleString('en-IN')}</strong></p><div class="form-group"><label>Amount to Refund</label><input type="number" step="0.01" id="refund-amount" max="${cSDB}" value="0"></div><p style="text-align:center;margin-bottom:1rem;color:var(--text-light);">OR</p><button type="button" class="action-btn btn-secondary" style="width:100%;" onclick="app.handleSettleSecurityDeposit(null, '${id}', 'adjust')">Adjust Against Pending Dues</button><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Confirm Refund</button></div></form></div></div>`;}mC.innerHTML=mH;},
+        // --- Core Application Logic (with Role Checks & New Features) ---
+        showModal(type, id = null) { 
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            const mC=document.getElementById('modal-container');let mH='';
+            if(type==='addRoom'){mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;
+            }else if(type==='editRoom'){const r=(this.state.rooms || []).find(rm=>rm.id===id);if(!r)return;mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}"></div><div class="form-group"><label>Room Photo (leave blank)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'};"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
+            }else if(type==='addTenant'){const aR=(this.state.rooms || []).filter(r=>r.status==='available');mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="0"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:red;font-size:0.9rem;">No available rooms.</p>':''}</div><div class="form-group"><label>Tenant Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none;"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;
+            }else if(type==='editTenant'){const t=(this.state.tenants || []).find(tn=>tn.id===id);if(!t)return;const cR=(this.state.rooms || []).find(r=>r.id===t.roomId),aR=(this.state.rooms || []).filter(r=>r.status==='available'),rO=[cR,...aR].filter(Boolean),uRO=[...new Map(rO.map(i=>[i['id'],i])).values()];mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="${t.initialSecurityDeposit || 0}"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (leave blank)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'};"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
+            } else if (type === 'settleSecurityDeposit') {
+                const tenantPayments = (this.state.payments || []).filter(p => p.tenantId === id);
+                const sdPaid = tenantPayments.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+                const sdRefunded = tenantPayments.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+                const sdAdjusted = tenantPayments.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+                const currentSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
+                const tenantDues = (this.state.dues || []).filter(d => d.tenantId === id);
+                const tenantPaymentsExclSD = tenantPayments.filter(pm => 
+                    pm.category !== 'Security Deposit (Paid)' && 
+                    pm.category !== 'Security Deposit (Refunded)' &&
+                    pm.category !== 'Security Deposit (Adjusted)'
+                );
+                const currentDuesBalance = tenantDues.reduce((s, d) => s + d.amount, 0) - tenantPaymentsExclSD.reduce((s, p) => s + p.amount, 0);
+
+                mH = `<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Settle Security Deposit</h2><button class="close-btn" data-action="close-modal">×</button></div>
+                    <form id="settle-security-deposit-form" data-tenant-id="${id}">
+                        <p style="margin-bottom: 1rem;">Current Security Deposit Balance: <strong>${this.state.settings.currencySymbol}${currentSDBalance.toLocaleString('en-IN')}</strong></p>
+                        <p style="margin-bottom: 1rem;">Current Pending Dues: <strong>${this.state.settings.currencySymbol}${Math.max(0, currentDuesBalance).toLocaleString('en-IN')}</strong></p>
+                        
+                        <div class="form-group">
+                            <label>Amount to Refund</label>
+                            <input type="number" step="0.01" id="refund-amount" max="${currentSDBalance}" value="0">
+                        </div>
+                        <p style="text-align: center; margin-bottom: 1rem; color: var(--text-light);">OR</p>
+                        <button type="button" class="action-btn btn-secondary" style="width:100%;" data-action="adjust-deposit-against-dues" data-id="${id}">Adjust Against Pending Dues</button>
+                        <div class="form-actions">
+                            <button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button>
+                            <button type="submit" class="action-btn btn-primary" id="confirm-refund-btn">Confirm Refund</button>
+                        </div>
+                    </form></div></div>`;
+            }
+            mC.innerHTML=mH; 
+
+            if (type === 'settleSecurityDeposit') {
+                const refundInput = mC.querySelector('#refund-amount');
+                const confirmRefundBtn = mC.querySelector('#confirm-refund-btn');
+                const adjustBtn = mC.querySelector('[data-action="adjust-deposit-against-dues"]');
+                const sdTenantId = id;
+
+                // Add event listener for the "Adjust Against Pending Dues" button
+                if (adjustBtn) {
+                    adjustBtn.addEventListener('click', async () => {
+                        if (!this.isOwner()) {
+                            this.showToast('Access Denied: You are in viewer mode.', 'error');
+                            return;
+                        }
+                        if (confirm(`Are you sure you want to adjust the security deposit against outstanding dues?`)) {
+                            await this.handleSettleSecurityDeposit(null, sdTenantId, 'adjust', currentSDBalance, currentDuesBalance);
+                        }
+                    });
+                }
+                
+                // Event listener for the "Confirm Refund" button (which is also the form submit)
+                if (confirmRefundBtn) {
+                    confirmRefundBtn.addEventListener('click', async (event) => {
+                         if (!this.isOwner()) {
+                            this.showToast('Access Denied: You are in viewer mode.', 'error');
+                            return;
+                        }
+                        event.preventDefault(); // Prevent default form submission initially
+                        const refundAmount = parseFloat(refundInput.value);
+                        if (isNaN(refundAmount) || refundAmount <= 0) {
+                            this.showToast('Please enter a valid amount to refund.', 'error');
+                            return;
+                        }
+                        if (refundAmount > currentSDBalance) {
+                            this.showToast('Refund amount cannot exceed current security deposit balance.', 'error');
+                            return;
+                        }
+                        if (confirm(`Are you sure you want to refund ${this.state.settings.currencySymbol}${refundAmount.toLocaleString('en-IN')}?`)) {
+                            await this.handleSettleSecurityDeposit(null, sdTenantId, 'refund', refundAmount);
+                        }
+                    });
+                }
+            }
+        },
         closeModal() { document.getElementById('modal-container').innerHTML = ''; },
-        async handleRoomSubmit(f) { const d=new FormData(f); const pF=d.get('photo'); const pU=await this.uploadPhotoToDrive(pF); this.state.rooms.push({id:`room_${Date.now()}`,number:d.get('number'),rent:parseFloat(d.get('rent')),status:'available',tenantId:null,photo:pU,meterStatus:'ok',meterInstallationId:`m_${Date.now()}`}); this.triggerAutoSave();this.closeModal();this.render();this.showToast('Room added!'); },
-        async handleTenantSubmit(f) { const d=new FormData(f); const rId=d.get('roomId'); if(!rId){this.showToast('Please select a room.','error');return;} const pF=d.get('photo'); const pU=await this.uploadPhotoToDrive(pF); const iSD=parseFloat(d.get('initialSecurityDeposit')||'0'); const nT={id:`tenant_${Date.now()}`,name:d.get('name'),phone:d.get('phone'),moveInDate:d.get('moveInDate'),isVerified:d.get('isVerified')==='on',photo:pU,roomId:rId,initialSecurityDeposit:iSD}; this.state.tenants.push(nT); if(iSD>0){this.state.payments.push({id:`pay_sd_${Date.now()}`,tenantId:nT.id,amount:iSD,date:new Date().toISOString(),category:'Security Deposit (Paid)',description:'Initial Security Deposit'});} const r=this.state.rooms.find(rm=>rm.id===rId); if(r){r.status='occupied';r.tenantId=nT.id;} this.triggerAutoSave();this.closeModal();this.navigateTo('tenants');this.showToast('Tenant added!'); },
-        handleSettingsSubmit(f) { this.state.settings.electricityRate=parseFloat(f.querySelector('#electricity-rate').value); this.state.settings.currencySymbol=f.querySelector('#currency-symbol').value; this.triggerAutoSave();this.render();this.showToast('Settings saved!'); },
-        handleUtilitySubmit(f) { const rId=f.dataset.roomId,r=this.state.rooms.find(rm=>rm.id===rId); const nR=parseInt(f.querySelector('#meter-reading').value); const lR=(this.state.utilityReadings||[]).filter(ur=>ur.meterInstallationId===r.meterInstallationId).sort((a,b)=>b.reading-a.reading)[0]?.reading||0; if(nR<=lR){this.showToast('New reading must be > last.','error');return;} const c=nR-lR,b=c*this.state.settings.electricityRate; this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:nR,meterInstallationId:r.meterInstallationId}); if(r?.tenantId)this.state.dues.push({id:`due_${Date.now()}`,tenantId:r.tenantId,amount:parseFloat(b.toFixed(2)),date:new Date().toISOString(),type:'utility',description:`Utility Bill (${c} units)`}); this.triggerAutoSave();this.render();this.showToast(`Bill of ${this.state.settings.currencySymbol}${b.toFixed(2)} generated.`); },
-        handlePaymentSubmit(f) { this.state.payments.push({id:`pay_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#payment-amount').value),date:new Date().toISOString(),category:f.querySelector('#payment-category').value,description:f.querySelector('#payment-category').value+" Payment"}); this.triggerAutoSave();this.render();this.showToast('Payment recorded!'); },
-        handleServiceChargeSubmit(f) { this.state.dues.push({id:`due_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#charge-amount').value),date:new Date().toISOString(),type:'service',description:f.querySelector('#charge-desc').value}); this.triggerAutoSave();this.render();this.showToast('Service charge added!'); },
-        async handleEditRoomSubmit(f) { const id=f.dataset.id,r=this.state.rooms.find(rm=>rm.id===id); if(!r)return; const d=new FormData(f); r.number=d.get('number'); r.rent=parseFloat(d.get('rent')); const p=d.get('photo'); if(p&&p.size>0)r.photo=await this.uploadPhotoToDrive(p); this.triggerAutoSave();this.closeModal();this.render();this.showToast('Room details updated!'); },
-        async handleEditTenantSubmit(f) { const id=f.dataset.id,t=this.state.tenants.find(tn=>tn.id===id); if(!t)return; const d=new FormData(f),oRId=t.roomId,nRId=d.get('roomId'); t.name=d.get('name');t.phone=d.get('phone');t.moveInDate=d.get('moveInDate');t.isVerified=d.get('isVerified')==='on';t.roomId=nRId; t.initialSecurityDeposit=parseFloat(d.get('initialSecurityDeposit')||'0'); const p=d.get('photo'); if(p&&p.size>0)t.photo=await this.uploadPhotoToDrive(p); if(oRId!==nRId){const oR=this.state.rooms.find(r=>r.id===oRId);if(oR){oR.status='available';oR.tenantId=null;} const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}} this.triggerAutoSave();this.closeModal();this.render();this.showToast('Tenant details updated!'); },
-        handleSettleSecurityDeposit(form, tenantId, type) { const p = (this.state.payments || []).filter(p => p.tenantId === tenantId); const sdp = p.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0); const sdr = p.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0); const sda = p.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0); const cSDB = sdp - sdr - sda; if (type === 'refund') { const rA = parseFloat(document.getElementById('refund-amount').value); if (isNaN(rA) || rA <= 0 || rA > cSDB) { this.showToast('Invalid refund amount.', 'error'); return; } this.state.payments.push({ id: `pay_sd_refund_${Date.now()}`, tenantId: tenantId, amount: rA, date: new Date().toISOString(), category: 'Security Deposit (Refunded)', description: 'Security Deposit Refund' }); this.showToast(`Refunded ${this.state.settings.currencySymbol}${rA.toLocaleString('en-IN')}.`, 'success'); } else if (type === 'adjust') { const d = (this.state.dues || []).filter(d => d.tenantId === tenantId); const pExclSD = p.filter(pm => pm.category !== 'Security Deposit (Paid)' && pm.category !== 'Security Deposit (Refunded)' && pm.category !== 'Security Deposit (Adjusted)'); const cDB = d.reduce((s, d) => s + d.amount, 0) - pExclSD.reduce((s, p) => s + p.amount, 0); const aA = Math.min(cSDB, Math.max(0, cDB)); if (aA <= 0) { this.showToast('No outstanding dues or insufficient security deposit to adjust.', 'warning'); this.closeModal(); return; } this.state.payments.push({ id: `pay_sd_adjust_${Date.now()}`, tenantId: tenantId, amount: aA, date: new Date().toISOString(), category: 'Security Deposit (Adjusted)', description: 'Security Deposit Adjusted Against Dues' }); this.showToast(`Adjusted ${this.state.settings.currencySymbol}${aA.toLocaleString('en-IN')} from security deposit against dues.`, 'success'); } this.triggerAutoSave(); this.closeModal(); this.render(); },
-        deleteItem(t, id) { if(t==='room'){if((this.state.rooms||[]).find(r=>r.id===id)?.status==='occupied'){this.showToast('Cannot delete occupied room.','error');return;} this.state.rooms=(this.state.rooms||[]).filter(r=>r.id!==id);this.navigateTo('rooms');} this.triggerAutoSave();this.showToast(`${t.replace('-',' ')} deleted.`,'success');},
-        markTenantAsLeft(tenantId) { const tI=this.state.tenants.findIndex(t=>t.id===tenantId); if(tI===-1)return; const t=this.state.tenants[tI]; t.leaveDate=new Date().toISOString(); const r=this.state.rooms.find(r=>r.id===t.roomId); if(r){r.status='available';r.tenantId=null;} if(!this.state.leftTenants)this.state.leftTenants=[]; this.state.leftTenants.push(t); this.state.tenants.splice(tI,1); this.triggerAutoSave(); this.navigateTo('leftTenants'); this.showToast(`${t.name}'s record moved to Left Tenants.`,'success');},
-        reportMeterBroken(rId) { const r=this.state.rooms.find(rm=>rm.id===rId);if(r)r.meterStatus='broken';this.triggerAutoSave();this.render();},
-        installNewMeter(rId) { const i=parseInt(prompt("Initial reading of new meter:","0"));if(isNaN(i)||i<0)return; const r=this.state.rooms.find(rm=>rm.id===rId); if(r){r.meterStatus='ok';r.meterInstallationId=`m_${Date.now()}`;} this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:i,meterInstallationId:r.meterInstallationId}); this.triggerAutoSave();this.render();this.showToast('New meter installed!');},
-        generateMissingRentDues() { let c=0; const today=new Date(); today.setHours(0,0,0,0); (this.state.tenants||[]).forEach(tenant=>{const room=(this.state.rooms||[]).find(rm=>rm.id===tenant.roomId); if(!room||!tenant.moveInDate)return; let moveInDate=new Date(tenant.moveInDate); moveInDate.setHours(0,0,0,0); let dueDate=new Date(moveInDate); dueDate.setMonth(dueDate.getMonth()+1); if(dueDate>today)return; const dueYear=today.getFullYear(); const dueMonth=today.getMonth(); const alreadyExists=(this.state.dues||[]).some(due=>due.tenantId===tenant.id&&due.type==='rent'&&new Date(due.date).getFullYear()===dueYear&&new Date(due.date).getMonth()===dueMonth); if(!alreadyExists){this.state.dues.push({id:`due_${today.getTime()}_${tenant.id}`,tenantId:tenant.id,amount:room.rent,date:today.toISOString(),type:'rent',description:`Monthly Rent`});c++;}}); return c;},
+        
+        async handleRoomSubmit(f) { 
+            const d=new FormData(f);
+            const photoFile = d.get('photo');
+            const photoUrl = await this.uploadPhotoToDrive(photoFile);
+
+            this.state.rooms.push({
+                id:`room_${Date.now()}`,
+                number:d.get('number'),
+                rent:parseFloat(d.get('rent')),
+                status:'available',
+                tenantId:null,
+                photo: photoUrl, // Store URL
+                meterStatus:'ok',
+                meterInstallationId:`m_${Date.now()}`
+            });
+            this.triggerAutoSave();this.closeModal();this.render();this.showToast('Room added!');
+        },
+        async handleTenantSubmit(f) { 
+            const d=new FormData(f);
+            const rId=d.get('roomId');
+            if(!rId){this.showToast('Please select a room.','error');return;}
+            
+            const photoFile = d.get('photo');
+            const photoUrl = await this.uploadPhotoToDrive(photoFile);
+            const initialSD = parseFloat(d.get('initialSecurityDeposit') || '0');
+
+            const nT={
+                id:`tenant_${Date.now()}`,
+                name:d.get('name'),
+                phone:d.get('phone'),
+                moveInDate:d.get('moveInDate'),
+                isVerified:d.get('isVerified')==='on',
+                photo: photoUrl, // Store URL
+                roomId:rId,
+                initialSecurityDeposit: initialSD // Store initial SD
+            };
+            this.state.tenants.push(nT);
+
+            // Record initial security deposit as a payment
+            if (initialSD > 0) {
+                this.state.payments.push({
+                    id: `pay_sd_${Date.now()}`,
+                    tenantId: nT.id,
+                    amount: initialSD,
+                    date: new Date().toISOString(),
+                    category: 'Security Deposit (Paid)',
+                    description: 'Initial Security Deposit'
+                });
+            }
+
+            const r=this.state.rooms.find(rm=>rm.id===rId);
+            if(r){r.status='occupied';r.tenantId=nT.id;}
+            this.triggerAutoSave();this.closeModal();this.navigateTo('tenants');this.showToast('Tenant added!');
+        },
+        handleSettingsSubmit(f) {
+            this.state.settings.electricityRate=parseFloat(f.querySelector('#electricity-rate').value);
+            this.state.settings.currencySymbol=f.querySelector('#currency-symbol').value;
+            this.triggerAutoSave();this.render();this.showToast('Settings saved!');
+        },
+        handleUtilitySubmit(f) { 
+            const rId=f.dataset.roomId,r=this.state.rooms.find(rm=>rm.id===rId);
+            const nR=parseInt(f.querySelector('#meter-reading').value);
+            const lR=(this.state.utilityReadings||[]).filter(ur=>ur.meterInstallationId===r.meterInstallationId).sort((a,b)=>b.reading-a.reading)[0]?.reading||0;
+            if(nR<=lR){this.showToast('New reading must be > last.','error');return;}
+            const c=nR-lR,b=c*this.state.settings.electricityRate;
+            this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:nR,meterInstallationId:r.meterInstallationId});
+            if(r?.tenantId)this.state.dues.push({id:`due_${Date.now()}`,tenantId:r.tenantId,amount:parseFloat(b.toFixed(2)),date:new Date().toISOString(),type:'utility',description:`Utility Bill (${c} units)`});
+            this.triggerAutoSave();this.render();this.showToast(`Bill of ${this.state.settings.currencySymbol}${b.toFixed(2)} generated.`);
+        },
+        handlePaymentSubmit(f) { 
+            this.state.payments.push({id:`pay_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#payment-amount').value),date:new Date().toISOString(),category:f.querySelector('#payment-category').value,description:f.querySelector('#payment-category').value+" Payment"});
+            this.triggerAutoSave();this.render();this.showToast('Payment recorded!');
+        },
+        handleServiceChargeSubmit(f) { 
+            this.state.dues.push({id:`due_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#charge-amount').value),date:new Date().toISOString(),type:'service',description:f.querySelector('#charge-desc').value});
+            this.triggerAutoSave();this.render();this.showToast('Service charge added!');
+        },
+        async handleEditRoomSubmit(f) { 
+            const id=f.dataset.id,r=this.state.rooms.find(rm=>rm.id===id);
+            if(!r)return;
+            const d=new FormData(f);
+            r.number=d.get('number');
+            r.rent=parseFloat(d.get('rent'));
+            const p=d.get('photo');
+            if(p&&p.size>0)r.photo=await this.uploadPhotoToDrive(p); // Update photo if new one selected
+            this.triggerAutoSave();this.closeModal();this.render();this.showToast('Room details updated!');
+        },
+        async handleEditTenantSubmit(f) { 
+            const id=f.dataset.id,t=this.state.tenants.find(tn=>tn.id===id);
+            if(!t)return;
+            const d=new FormData(f),oRId=t.roomId,nRId=d.get('roomId');
+            t.name=d.get('name');t.phone=d.get('phone');t.moveInDate=d.get('moveInDate');t.isVerified=d.get('isVerified')==='on';t.roomId=nRId;
+            t.initialSecurityDeposit = parseFloat(d.get('initialSecurityDeposit') || '0'); // Update initial SD, but actual balance is from payments
+            const p=d.get('photo');
+            if(p&&p.size>0)t.photo=await this.uploadPhotoToDrive(p); // Update photo if new one selected
+            if(oRId!==nRId){
+                const oR=this.state.rooms.find(r=>r.id===oRId);if(oR){oR.status='available';oR.tenantId=null;}
+                const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}
+            }
+            this.triggerAutoSave();this.closeModal();this.render();this.showToast('Tenant details updated!');
+        },
+        async handleSettleSecurityDeposit(form, tenantId, type, amount, currentDuesBalance = 0) {
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            const tenantPayments = (this.state.payments || []).filter(p => p.tenantId === tenantId);
+            const sdPaid = tenantPayments.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+            const sdRefunded = tenantPayments.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+            const sdAdjusted = tenantPayments.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+            const currentSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
+            if (type === 'refund') {
+                const refundAmount = amount; // amount is directly the refund value here
+                if (refundAmount <= 0 || refundAmount > currentSDBalance) {
+                    this.showToast('Invalid refund amount.', 'error');
+                    return;
+                }
+                this.state.payments.push({
+                    id: `pay_sd_refund_${Date.now()}`,
+                    tenantId: tenantId,
+                    amount: refundAmount,
+                    date: new Date().toISOString(),
+                    category: 'Security Deposit (Refunded)',
+                    description: 'Security Deposit Refund'
+                });
+                this.showToast(`Refunded ${this.state.settings.currencySymbol}${refundAmount.toLocaleString('en-IN')}.`, 'success');
+
+            } else if (type === 'adjust') {
+                const amountToAdjust = Math.min(currentSDBalance, Math.max(0, currentDuesBalance));
+                if (amountToAdjust <= 0) {
+                    this.showToast('No outstanding dues or insufficient security deposit to adjust.', 'warning');
+                    this.closeModal(); // Close if no adjustment needed
+                    return;
+                }
+                this.state.payments.push({
+                    id: `pay_sd_adjust_${Date.now()}`,
+                    tenantId: tenantId,
+                    amount: amountToAdjust,
+                    date: new Date().toISOString(),
+                    category: 'Security Deposit (Adjusted)',
+                    description: 'Security Deposit Adjusted Against Dues'
+                });
+                this.showToast(`Adjusted ${this.state.settings.currencySymbol}${amountToAdjust.toLocaleString('en-IN')} from security deposit against dues.`, 'success');
+            }
+
+            this.triggerAutoSave();
+            this.closeModal();
+            this.render(); // Re-render tenant detail to show updated balance
+        },
+        deleteItem(t, id) { 
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            if(t==='room'){
+                if((this.state.rooms||[]).find(r=>r.id===id)?.status==='occupied'){
+                    this.showToast('Cannot delete occupied room.','error');return;
+                }
+                this.state.rooms=(this.state.rooms||[]).filter(r=>r.id!==id);
+                this.navigateTo('rooms');
+            }
+            this.triggerAutoSave();this.showToast(`${t.replace('-',' ')} deleted.`,'success');
+        },
+        markTenantAsLeft(tenantId) { 
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            const tenantIndex = this.state.tenants.findIndex(t => t.id === tenantId); 
+            if (tenantIndex === -1) return; 
+            const tenant = this.state.tenants[tenantIndex]; 
+            tenant.leaveDate = new Date().toISOString(); 
+            const room = this.state.rooms.find(r => r.id === tenant.roomId); 
+            if (room) { room.status = 'available'; room.tenantId = null; } 
+            if (!this.state.leftTenants) this.state.leftTenants = []; 
+            this.state.leftTenants.push(tenant); 
+            this.state.tenants.splice(tenantIndex, 1); 
+            this.triggerAutoSave(); 
+            this.navigateTo('leftTenants'); 
+            this.showToast(`${tenant.name}'s record moved to Left Tenants.`, 'success');
+        },
+        reportMeterBroken(rId) { 
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            const r=this.state.rooms.find(rm=>rm.id===rId);if(r)r.meterStatus='broken';this.triggerAutoSave();this.render();
+        },
+        installNewMeter(rId) {
+            if (!this.isOwner()) {
+                this.showToast('Access Denied: You are in viewer mode.', 'error');
+                return;
+            }
+            const i=parseInt(prompt("Initial reading of new meter:","0"));if(isNaN(i)||i<0)return;
+            const r=this.state.rooms.find(rm=>rm.id===rId);
+            if(r){r.meterStatus='ok';r.meterInstallationId=`m_${Date.now()}`;}
+            this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:i,meterInstallationId:r.meterInstallationId});
+            this.triggerAutoSave();this.render();this.showToast('New meter installed!');
+        },
+        generateMissingRentDues() { 
+            let c=0;const t=new Date();t.setHours(0,0,0,0);
+            (this.state.tenants||[]).forEach(tn=>{
+                const r=(this.state.rooms||[]).find(rm=>rm.id===tn.roomId);
+                if(!r||!tn.moveInDate)return;
+                let dD=new Date(tn.moveInDate);dD.setHours(0,0,0,0);
+                dD.setMonth(dD.getMonth()+1); // Start checking from the month after move-in
+                
+                while(dD <= t){
+                    const dY=dD.getFullYear(),dM=dD.getMonth();
+                    const alreadyExists = (this.state.dues || []).some(due => 
+                        due.tenantId === tn.id && 
+                        due.type === 'rent' && 
+                        new Date(due.date).getFullYear() === dY && 
+                        new Date(due.date).getMonth() === dM
+                    );
+                    if(!alreadyExists){
+                        this.state.dues.push({
+                            id:`due_${dD.getTime()}_${tn.id}`,
+                            tenantId:tn.id,
+                            amount:r.rent,
+                            date:dD.toISOString(),
+                            type:'rent',
+                            description:`Monthly Rent`
+                        });
+                        c++;
+                    }
+                    dD.setMonth(dD.getMonth()+1); // Move to next month
+                }
+            });
+            return c;
+        },
         generateReceipt(pId){const p=this.state.payments.find(pm=>pm.id===pId),t=this.state.tenants.find(tn=>tn.id===p.tenantId)||this.state.leftTenants.find(tn=>tn.id===p.tenantId),w=window.open('','रसीद');w.document.write(`<html><head><title>भुगतान रसीद</title></head><body style="font-family:sans-serif;padding:2rem;"><h1>भुगतान रसीद</h1><hr><p><strong>प्राप्तकर्ता का नाम:</strong> ${t.name}</p><p><strong>राशि:</strong> ${this.state.settings.currencySymbol}${p.amount.toLocaleString('en-IN')}</p><p><strong>दिनांक:</strong> ${new Date(p.date).toLocaleString('hi-IN')}</p><p><strong>के लिए:</strong> ${p.description||p.category}</p><hr><p>धन्यवाद!</p></body></html>`);w.document.close();w.print();},
         shareReceiptWhatsApp(paymentId) { const p=this.state.payments.find(pm=>pm.id===paymentId);if(!p)return;const t=this.state.tenants.find(tn=>tn.id===p.tenantId)||this.state.leftTenants.find(tn=>tn.id===p.tenantId);if(!t||!t.phone){this.showToast('Tenant phone not found.','error');return;}const{currencySymbol:cS}=this.state.settings;const m=`*Payment Confirmation*\n\nHi ${t.name},\n\nWe have received your payment.\n\n*Details:*\nAmount: ${cS}${p.amount.toLocaleString('en-IN')}\nDate: ${new Date(p.date).toLocaleDateString()}\nFor: ${p.description||p.category}\n\nThank you.`;this.openWhatsApp(t.phone,m);},
-        shareDuesWhatsApp(tenantId){const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t||!t.phone){this.showToast('किरायेदार का फ़ोन नंबर नहीं मिला। कृपया जांचें।','error');return;}const{currencySymbol:cS,electricityRate:eR}=this.state.settings;const allDues=(this.state.dues||[]).filter(d=>d.tenantId===tenantId);const allPayments=(this.state.payments||[]).filter(p=>p.tenantId===tenantId&&!['Security Deposit (Paid)','Security Deposit (Refunded)','Security Deposit (Adjusted)'].includes(p.category));const totalDueAmount=allDues.reduce((s,d)=>s+d.amount,0);const totalPaidAmount=allPayments.reduce((s,p)=>s+p.amount,0);const balance=totalDueAmount-totalPaidAmount;if(balance<=0){this.showToast('कोई लंबित बकाया राशि नहीं है।','success');return;}const hDI=[];allDues.forEach(d=>{let iS='';const aF=`${cS}${d.amount.toLocaleString('hi-IN')}`;let isPaid=false;if(d.type==='rent'){const pFTM=allPayments.filter(p=>p.category==='Rent'&&new Date(p.date).getFullYear()===new Date(d.date).getFullYear()&&new Date(p.date).getMonth()===new Date(d.date).getMonth()).reduce((s,p)=>s+p.amount,0);if(pFTM>=d.amount)isPaid=true;}else if(d.type==='utility'){const pFTU=allPayments.filter(p=>p.category==='Electricity'&&p.description===d.description&&new Date(p.date).getFullYear()===new Date(d.date).getFullYear()&&new Date(p.date).getMonth()===new Date(d.date).getMonth()).reduce((s,p)=>s+p.amount,0);if(pFTU>=d.amount)isPaid=true;}else if(d.type==='service'){const pFTS=allPayments.filter(p=>p.category==='Other'&&p.description===d.description).reduce((s,p)=>s+p.amount,0);if(pFTS>=d.amount)isPaid=true;}if(!isPaid){if(d.type==='rent'){iS=`* किराया: ${aF}`;}else if(d.type==='utility'){const uM=d.description.match(/(\d+(\.\d+)?)\s*units/),u=uM?uM[1]:'N/A';iS=`* बिजली: ${u} यूनिट @ ${cS}${eR}/यूनिट = ${aF}`;}else if(d.type==='service'){iS=`* ${d.description}: ${aF}`;}hDI.push(iS);}});const dLS=hDI.join('\n');const pPN='7078098123';const fWM=`नमस्ते ${t.name},\n\nयह आपके बकाया शुल्कों का विवरण है:\n\n${dLS}\n\n*कुल देय राशि: ${cS}${balance.toLocaleString('hi-IN')}*\n\nकृपया जल्द से जल्द शेष राशि का भुगतान करें। आप इस नंबर पर भुगतान कर सकते हैं: *${pPN}*\n\nभुगतान के बाद, कृपया हमें *स्क्रीनशॉट* भेजना न भूलें।\n\nधन्यवाद।`;this.openWhatsApp(t.phone,fWM);},
+        shareDuesWhatsApp(tenantId){const t=this.state.tenants.find(tn=>tn.id===tenantId);if(!t||!t.phone){this.showToast('किरायेदार का फ़ोन नंबर नहीं मिला। कृपया जांचें।','error');return;}const{currencySymbol:cS,electricityRate:eR}=this.state.settings;
+            // Exclude security deposit movements from standard dues calculation
+            const allDues=(this.state.dues||[]).filter(d=>d.tenantId===tenantId);
+            const allPayments=(this.state.payments||[]).filter(p=>p.tenantId===tenantId && !['Security Deposit (Paid)', 'Security Deposit (Refunded)', 'Security Deposit (Adjusted)'].includes(p.category));
+            
+            const totalDueAmount=allDues.reduce((s,d)=>s+d.amount,0);
+            const totalPaidAmount=allPayments.reduce((s,p)=>s+p.amount,0);
+            const balance=totalDueAmount-totalPaidAmount;
+            
+            if(balance<=0){this.showToast('कोई लंबित बकाया राशि नहीं है।','success');return;}
+            const hindiDueItems=[];
+            allDues.forEach(d=>{let itemString='';const amountFormatted=`${cS}${d.amount.toLocaleString('hi-IN')}`;
+            
+            // For rent and utility, we need to check if the specific month's due is paid
+            let isPaid = false;
+            if (d.type === 'rent') {
+                const paidForThisMonth = allPayments.filter(p => p.category === 'Rent' && new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && new Date(p.date).getMonth() === new Date(d.date).getMonth()).reduce((s, p) => s + p.amount, 0);
+                if (paidForThisMonth >= d.amount) isPaid = true;
+            } else if (d.type === 'utility') {
+                const paidForThisUtility = allPayments.filter(p => p.category === 'Electricity' && p.description === d.description && new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && new Date(p.date).getMonth() === new Date(d.date).getMonth()).reduce((s, p) => s + p.amount, 0);
+                if (paidForThisUtility >= d.amount) isPaid = true;
+            } else if (d.type === 'service') {
+                 // For service charges, a simple check if any payment covers it by description or if it's explicitly paid
+                 const paidForThisService = allPayments.filter(p => p.category === 'Other' && p.description === d.description).reduce((s, p) => s + p.amount, 0);
+                 if (paidForThisService >= d.amount) isPaid = true;
+            }
+
+            if (!isPaid) {
+                if(d.type==='rent'){itemString=`* किराया: ${amountFormatted}`;}
+                else if(d.type==='utility'){const unitsMatch=d.description.match(/(\d+(\.\d+)?)\s*units/),units=unitsMatch?unitsMatch[1]:'N/A';itemString=`* बिजली: ${units} यूनिट @ ${cS}${eR}/यूनिट = ${amountFormatted}`;}
+                else if(d.type==='service'){itemString=`* ${d.description}: ${amountFormatted}`;}
+                hindiDueItems.push(itemString);
+            }
+            });
+            
+            const duesListString=hindiDueItems.join('\n');
+            const paymentPhoneNumber='7078098123';
+            const finalWhatsAppMessage=`नमस्ते ${t.name},\n\nयह आपके बकाया शुल्कों का विवरण है:\n\n${duesListString}\n\n*कुल देय राशि: ${cS}${balance.toLocaleString('hi-IN')}*\n\nकृपया जल्द से जल्द शेष राशि का भुगतान करें। आप इस नंबर पर भुगतान कर सकते हैं: *${paymentPhoneNumber}*\n\nभुगतान के बाद, कृपया हमें *स्क्रीनशॉट* भेजना न भूलें।\n\nधन्यवाद।`;
+            this.openWhatsApp(t.phone,finalWhatsAppMessage);
+        },
         openWhatsApp(phone, message) { const cP=phone.replace(/\D/g,''),fP=cP.startsWith('91')?cP:'91'+cP;const u=`https://wa.me/${fP}?text=${encodeURIComponent(message)}`;window.open(u,'_blank');},
-        showToast(msg, type='success') {const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className=t.className.replace('show',''),4000);},
+        showToast(msg, type='success') {const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className=t.className.replace('show',''),3000);},
         previewPhoto(e) {const p=document.getElementById('photo-preview');if(!p)return;const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>{p.src=ev.target.result;p.style.display='block';};r.readAsDataURL(f);}},
     };
-    
-    // Make app instance globally accessible for inline onclick handlers
-    window.app = app;
+
     app.init();
-}
+};
 </script>
+
 </body>
 </html>
