@@ -174,6 +174,7 @@
                 <img id="user-img" src="" alt="User">
                 <div>
                     <span id="user-name"></span>
+                    <span id="sync-status" style="font-size: 0.8rem; color: var(--text-light);"></span> <!-- NEW: Syncing status indicator -->
                     <button id="signout-btn">Sign Out</button>
                 </div>
             </div>
@@ -346,10 +347,13 @@ window.onload = () => {
 
         isOwner() { return this.userRole === 'owner'; },
 
+        // Auto-save mechanism: debounces saves by 2 seconds
         triggerAutoSave() {
-            if (!this.isOwner()) return; // Only owner can trigger saves
+            if (!this.isOwner()) return;
             clearTimeout(this.saveTimeout);
-            this.saveTimeout = setTimeout(() => this.saveData(), 2000); // Debounce saves by 2 seconds
+            const syncStatusSpan = document.getElementById('sync-status');
+            if (syncStatusSpan) syncStatusSpan.textContent = 'Changes detected...';
+            this.saveTimeout = setTimeout(() => this.saveData(), 2000);
         },
         
         // --- NEW HELPER FUNCTIONS FOR SAVING ---
@@ -373,37 +377,42 @@ window.onload = () => {
         },
 
         async _uploadFile(fileName, content, fileId) {
-            const boundary = '-------314159265358979323846';
-            const delimiter = "\r\n--" + boundary + "\r\n";
-            const close_delim = "\r\n--" + boundary + "--";
-            
-            let request;
-            const metadata = { 'name': fileName, 'mimeType': 'application/json' };
-
             if (fileId) {
-                // UPDATE an existing file
-                const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify({}) + delimiter + 'Content-Type: application/json\r\n\r\n' + content + close_delim;
-                request = gapi.client.request({
-                    'path': `https://www.googleapis.com/upload/drive/v3/files/${fileId}`,
-                    'method': 'PATCH',
-                    'params': { 'uploadType': 'multipart' },
-                    'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
-                    'body': multipartRequestBody
+                // UPDATE an existing file using 'media' upload type for content-only update
+                const response = await gapi.client.drive.files.update({
+                    fileId: fileId,
+                    uploadType: 'media',
+                    media: {
+                        mimeType: 'application/json',
+                        body: content
+                    }
                 });
+                return response.result.id;
             } else {
-                // CREATE a new file
-                metadata.parents = [this.appFolderId];
-                const multipartRequestBody = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/json\r\n\r\n' + content + close_delim;
-                request = gapi.client.request({
+                // CREATE a new file using 'multipart' upload type for metadata + content
+                const boundary = '-------314159265358979323846';
+                const delimiter = "\r\n--" + boundary + "\r\n";
+                const close_delim = "\r\n--" + boundary + "--";
+                
+                const metadata = { 'name': fileName, 'mimeType': 'application/json', 'parents': [this.appFolderId] };
+                const multipartRequestBody =
+                    delimiter +
+                    'Content-Type: application/json\r\n\r\n' +
+                    JSON.stringify(metadata) +
+                    delimiter +
+                    'Content-Type: application/json\r\n\r\n' +
+                    content +
+                    close_delim;
+
+                const response = await gapi.client.request({
                     'path': 'https://www.googleapis.com/upload/drive/v3/files',
                     'method': 'POST',
                     'params': { 'uploadType': 'multipart' },
                     'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
                     'body': multipartRequestBody
                 });
+                return response.result.id;
             }
-            const response = await request;
-            return response.result.id;
         },
 
         async saveData() {
@@ -411,12 +420,15 @@ window.onload = () => {
             this.isSaving = true;
             
             const manualSaveBtn = document.getElementById('manual-save-btn');
+            const syncStatusSpan = document.getElementById('sync-status');
+            
             let originalBtnText = '';
             if (manualSaveBtn) {
                 originalBtnText = manualSaveBtn.textContent;
                 manualSaveBtn.disabled = true;
                 manualSaveBtn.textContent = 'Syncing...';
             }
+            if (syncStatusSpan) syncStatusSpan.textContent = 'Syncing...';
             
             this.showToast("Saving data to Google Drive...");
 
@@ -425,7 +437,7 @@ window.onload = () => {
 
                 const dataToSave = JSON.stringify(this.state, null, 2);
 
-                // --- 1. Save the main data file ---
+                // Save the main data file
                 const mainSavePromise = this._uploadFile(this.DATA_FILE_NAME, dataToSave, this.driveFileId)
                     .then(fileId => {
                         if (!this.driveFileId) { 
@@ -434,7 +446,7 @@ window.onload = () => {
                         }
                     });
 
-                // --- 2. Save the monthly record file ---
+                // Save the monthly record file
                 const now = new Date();
                 const monthName = now.toLocaleString('default', { month: 'long' });
                 const year = now.getFullYear();
@@ -445,14 +457,17 @@ window.onload = () => {
                         return this._uploadFile(monthlyFileName, dataToSave, monthlyFileId);
                     });
                 
-                // --- Execute both save operations in parallel ---
+                // Execute both save operations in parallel
                 await Promise.all([mainSavePromise, monthlySavePromise]);
 
                 this.showToast('Data & monthly record saved successfully!', 'success');
+                if (syncStatusSpan) syncStatusSpan.textContent = 'Synced!';
+                setTimeout(() => { if (syncStatusSpan.textContent === 'Synced!') syncStatusSpan.textContent = ''; }, 3000); // Clear after a few seconds
 
             } catch (e) {
                 console.error("Error saving data:", e);
                 this.showToast("An error occurred during save. See console.", "error");
+                if (syncStatusSpan) syncStatusSpan.textContent = 'Sync failed!';
             } finally {
                 this.isSaving = false;
                 if (manualSaveBtn) {
