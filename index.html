@@ -420,6 +420,9 @@
              color: white;
              text-transform: uppercase;
         }
+        .card-photo.tenant-avatar img {
+            border-radius: inherit; /* To ensure circular image in card */
+        }
 
         .card-status {
             background-color: rgba(0, 0, 0, 0.6);
@@ -473,6 +476,14 @@
             flex-shrink: 0;
             border: 3px solid var(--border-color);
         }
+        .detail-photo.tenant-avatar {
+            font-size: 3rem; /* Larger for detail view initials */
+        }
+        .detail-photo.tenant-avatar img {
+            border-radius: inherit; /* To ensure circular image in detail */
+        }
+
+
         .detail-info {
             flex-grow: 1;
         }
@@ -674,7 +685,7 @@
             background-color: transparent;
             border: none;
         }
-        .form-group img#photo-preview {
+        .form-group img.photo-preview-element { /* Generic class for preview images */
             max-width: 80px; /* Smaller preview image */
             max-height: 80px;
             margin-top: 0.8rem;
@@ -953,7 +964,7 @@
                 padding: 0.8rem;
                 font-size: 1rem;
             }
-            .form-group img#photo-preview {
+            .form-group img.photo-preview-element { /* Generic class for preview images */
                 max-width: 100px;
                 max-height: 100px;
             }
@@ -1173,6 +1184,7 @@
 
                         if (res.result.files && res.result.files.length > 0) {
                             this.appFolderId = res.result.files[0].id;
+                            console.log('App folder found:', this.appFolderId);
                         } else {
                             // Create the folder if it doesn't exist
                             let folder = { 'name': this.APP_FOLDER_NAME, 'mimeType': 'application/vnd.google-apps.folder' };
@@ -1181,6 +1193,7 @@
                                 fields: 'id' 
                             });
                             this.appFolderId = res.result.id;
+                            console.log('App folder created:', this.appFolderId);
                         }
                         return this.appFolderId;
                     } catch (e) { 
@@ -1205,7 +1218,8 @@
                             this.driveFileId = file.id;
                             // Determine user role based on file edit capabilities
                             this.userRole = file.capabilities.canEdit ? 'owner' : 'viewer'; 
-                            
+                            console.log('Main data file found:', this.driveFileId, 'User role:', this.userRole);
+
                             // Fetch file content
                             const fileContentResponse = await gapi.client.drive.files.get({ 
                                 fileId: this.driveFileId, 
@@ -1214,16 +1228,26 @@
                             const loadedState = JSON.parse(fileContentResponse.body);
                             
                             // Merge loaded state with default to ensure all properties exist
-                            const defaultState = { rooms: [], tenants: [], leftTenants: [], dues: [], payments: [], utilityReadings: [], settings: { electricityRate: 8.00, currencySymbol: '₹' } };
+                            const defaultState = { 
+                                rooms: [], tenants: [], leftTenants: [], 
+                                dues: [], payments: [], utilityReadings: [], 
+                                settings: { electricityRate: 8.00, currencySymbol: '₹' } 
+                            };
                             this.state = { ...defaultState, ...loadedState };
                             this.state.settings = { ...defaultState.settings, ...(loadedState.settings || {}) }; // Ensure settings are merged with defaults
-                            
+
+                            // Ensure new photo property exists on existing tenants on load
+                            this.state.tenants = (this.state.tenants || []).map(t => ({...t, photo: t.photo || null }));
+                            this.state.leftTenants = (this.state.leftTenants || []).map(t => ({...t, photo: t.photo || null }));
+
+                            console.log('Data successfully loaded from Drive. State:', this.state);
                             this.showToast(`Data loaded. (${this.userRole} mode)`, "success");
                         } else {
                             // No data file found, assume user is owner and will create it
                             this.userRole = 'owner';
                             this.showToast("No data file found. Starting fresh. (Owner mode)", "info");
                             await this._findOrCreateAppFolder(); // Ensure folder exists for new data file
+                            console.log('No data file found. App folder ID:', this.appFolderId);
                         }
                     } catch (e) { 
                         console.error("Error loading data:", e); 
@@ -1262,6 +1286,7 @@
                                 body: content
                             }
                         });
+                        console.log(`_performFileUpload: Updating file ${fileName} with ID ${fileId}`);
                     } else {
                         // For CREATING a new file: Use 'multipart' upload type to include both metadata and content.
                         if (parentFolderId) metadata.parents = [parentFolderId];
@@ -1273,8 +1298,10 @@
                             'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
                             'body': multipartRequestBody
                         });
+                        console.log(`_performFileUpload: Creating new file ${fileName} in folder ${parentFolderId}`);
                     }
                     const response = await request;
+                    console.log(`_performFileUpload: File operation for ${fileName} successful. Result ID: ${response.result.id}`);
                     return response.result.id;
                 },
 
@@ -1286,8 +1313,10 @@
                             fields: 'files(id)'
                         });
                         if (response.result.files && response.result.files.length > 0) {
+                            console.log(`_findFileByNameInFolder: Found ${fileName} with ID ${response.result.files[0].id}`);
                             return response.result.files[0].id; // Return the ID if found
                         }
+                        console.log(`_findFileByNameInFolder: ${fileName} not found in folder ${folderId}.`);
                         return null; // Return null if not found
                     } catch (e) {
                         console.error(`Error finding file by name: ${fileName} in folder ${folderId}`, e);
@@ -1366,10 +1395,19 @@
                 },
 
                 async uploadPhotoToDrive(file) {
-                    if (!file || file.size === 0) return ''; // No file selected
+                    if (!file || file.size === 0) {
+                        console.log("No file selected for upload or file is empty.");
+                        return null; // No file selected, return null
+                    }
 
                     if (!this.appFolderId) {
+                        console.log("UploadPhoto: App folder ID not set, trying to find/create.");
                         await this._findOrCreateAppFolder(); // Ensure app folder exists
+                        if (!this.appFolderId) {
+                            console.error("UploadPhoto: Could not get app folder ID. Aborting photo upload.");
+                            this.showToast("Failed to upload photo: Could not access app folder.", "error");
+                            return null;
+                        }
                     }
 
                     const boundary = '-------314159265358979323846';
@@ -1396,8 +1434,8 @@
                                 '\r\n' +
                                 base64Data +
                                 close_delim;
-
                             try {
+                                console.log(`UploadPhoto: Starting upload for ${file.name}`);
                                 const response = await gapi.client.request({
                                     'path': 'https://www.googleapis.com/upload/drive/v3/files',
                                     'method': 'POST',
@@ -1405,8 +1443,9 @@
                                     'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
                                     'body': multipartRequestBody
                                 });
-                                // webContentLink provides a direct link to the content
-                                resolve(response.result.webContentLink); 
+                                // webContentLink provides a direct link to the content (might not always be direct link but good enough for display)
+                                console.log(`UploadPhoto: Successfully uploaded ${file.name}. Link: ${response.result.webContentLink || response.result.webViewLink}`);
+                                resolve(response.result.webContentLink || response.result.webViewLink); 
                             } catch (error) {
                                 console.error("Error uploading photo to Drive:", error);
                                 this.showToast("Failed to upload photo.", "error");
@@ -1414,6 +1453,7 @@
                             }
                         };
                         reader.onerror = (error) => {
+                            console.error("FileReader error:", error);
                             reject(error);
                         };
                         reader.readAsDataURL(file); // Read as Base64 for multipart upload
@@ -1498,8 +1538,11 @@
                         if(h[e.target.id])h[e.target.id](e.target);
                     });
 
-                    document.body.addEventListener('change',e=>{
-                        if(e.target.matches('input[type="file"]')&&e.target.id!=='import-file-input')this.previewPhoto(e); 
+                    // General event listener for all file inputs with type="file" for preview
+                    document.body.addEventListener('change', e => {
+                        if (e.target.matches('input[type="file"]') && !e.target.classList.contains('no-preview')) { // Add 'no-preview' class to inputs that should not trigger this
+                            this.previewPhoto(e); 
+                        }
                         if(e.target.id === 'dashboard-filter'){ this.state.dashboardFilter = e.target.value; this.render(); }
                     });
                 },
@@ -1599,8 +1642,8 @@
                                     </div>
                                     <div class="grid-container">
                                         ${(this.state.tenants||[]).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}">
-                                            <div class="card-photo tenant-avatar" style="background-color: ${t.isVerified ? 'var(--primary-color)' : 'var(--warning-color)'};">
-                                                ${t.name ? t.name.charAt(0) : '?'}
+                                            <div class="card-photo tenant-avatar" style="background-color: ${t.photo ? 'transparent' : (t.isVerified ? 'var(--primary-color)' : 'var(--warning-color)')};">
+                                                ${t.photo ? `<img src="${t.photo}" alt="${t.name}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : (t.name ? t.name.charAt(0) : '?')}
                                             </div>
                                             <div class="card-content">
                                                 <h3 class="card-title">${t.name}</h3>
@@ -1617,8 +1660,8 @@
                                     <div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div>
                                     <div class="grid-container">
                                         ${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" style="opacity: 0.8;">
-                                                <div class="card-photo tenant-avatar" style="background-color: var(--text-light);">
-                                                    ${t.name ? t.name.charAt(0) : '?'}
+                                                <div class="card-photo tenant-avatar" style="background-color: ${t.photo ? 'transparent' : 'var(--text-light)'};">
+                                                    ${t.photo ? `<img src="${t.photo}" alt="${t.name}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : (t.name ? t.name.charAt(0) : '?')}
                                                 </div>
                                                 <div class="card-content">
                                                     <h3 class="card-title">${t.name}</h3>
@@ -1763,8 +1806,8 @@
                                 </div>
                             </div>
                             <div class="detail-view-header">
-                                <div class="detail-photo tenant-avatar" style="background-color: var(--secondary-color);">
-                                    ${t.name ? t.name.charAt(0) : '?'}
+                                <div class="detail-photo tenant-avatar" style="background-color: ${t.photo ? 'transparent' : 'var(--secondary-color)'};">
+                                    ${t.photo ? `<img src="${t.photo}" alt="${t.name}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;">` : (t.name ? t.name.charAt(0) : '?')}
                                 </div>
                                 <div class="detail-info">
                                     <h2>${t.name}</h2>
@@ -1824,19 +1867,19 @@
                     }
                     const mC=document.getElementById('modal-container');let mH='';
                     if(type==='addRoom'){
-                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required step="0.01"></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="" style="display:none; margin-top: 1rem;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;
+                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Room</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="room-form"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required step="0.01"></div><div class="form-group"><label>Room Photo</label><input type="file" name="photo" accept="image/*" id="room-photo-file-input"><img id="room-photo-preview" src="" style="display:none; margin-top: 1rem;" class="photo-preview-element"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Room</button></div></form></div></div>`;
                     } else if(type==='editRoom'){
                         const r=(this.state.rooms || []).find(rm=>rm.id===id);if(!r)return;
-                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}" step="0.01"></div><div class="form-group"><label>Room Photo (optional, leave blank to keep current)</label><input type="file" name="photo" accept="image/*"><img id="photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'}; margin-top: 1rem;"></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
+                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Room ${r.number}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-room-form" data-id="${id}"><div class="form-group"><label>Room Number*</label><input type="text" name="number" required value="${r.number}"></div><div class="form-group"><label>Monthly Rent (${this.state.settings.currencySymbol})*</label><input type="number" name="rent" required value="${r.rent}" step="0.01"></div><div class="form-group"><label>Room Photo (optional)</label><input type="file" name="photo" accept="image/*" id="room-photo-file-input"><img id="room-photo-preview" src="${r.photo||''}" style="display:${r.photo?'block':'none'}; margin-top: 1rem;" class="photo-preview-element"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" id="remove-room-photo" name="removePhoto" style="width:auto;margin-right:0.5rem;"><label for="remove-room-photo" style="margin:0;">Remove current room photo</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
                     } else if(type==='addTenant'){
                         const aR=(this.state.rooms || []).filter(r=>r.status==='available');
-                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="0" step="0.01"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:var(--danger-color);font-size:0.9rem;margin-top:0.5rem;">No available rooms. Please add a room first.</p>':''}</div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;
+                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Add New Tenant</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="tenant-form"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${new Date().toISOString().split('T')[0]}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="0" step="0.01"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required ${aR.length===0?'disabled':''}><option value="">Select a room</option>${aR.map(r=>`<option value="${r.id}">Room ${r.number}</option>`).join('')}</select>${aR.length===0?'<p style="color:var(--danger-color);font-size:0.9rem;margin-top:0.5rem;">No available rooms. Please add a room first.</p>':''}</div><div class="form-group"><label>Tenant Photo (optional)</label><input type="file" name="photo" accept="image/*" id="tenant-photo-file-input"><img id="tenant-photo-preview" src="" style="display:none; margin-top: 1rem;" class="photo-preview-element"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;"><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Tenant</button></div></form></div></div>`;
                     } else if(type==='editTenant'){
                         const t=(this.state.tenants || []).find(tn=>tn.id===id);if(!t)return;
                         const cR=(this.state.rooms || []).find(r=>r.id===t.roomId),aR=(this.state.rooms || []).filter(r=>r.status==='available');
                         const rO=[cR,...aR].filter(Boolean); // current room + available rooms, filter out null
                         const uRO=[...new Map(rO.map(i=>[i['id'],i])).values()]; // unique rooms
-                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="${t.initialSecurityDeposit || 0}" step="0.01"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
+                        mH=`<div class="modal active"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Edit Tenant ${t.name}</h2><button class="close-btn" data-action="close-modal">×</button></div><form id="edit-tenant-form" data-id="${id}"><div class="form-group"><label>Full Name*</label><input type="text" name="name" required value="${t.name}"></div><div class="form-group"><label>Phone Number*</label><input type="tel" name="phone" required value="${t.phone}"></div><div class="form-group"><label>Move-in Date*</label><input type="date" name="moveInDate" required value="${t.moveInDate}"></div><div class="form-group"><label>Initial Security Deposit (${this.state.settings.currencySymbol})</label><input type="number" name="initialSecurityDeposit" value="${t.initialSecurityDeposit || 0}" step="0.01"></div><div class="form-group"><label>Assign to Room*</label><select name="roomId" required>${uRO.map(r=>`<option value="${r.id}" ${r.id===t.roomId?'selected':''}>Room ${r.number}</option>`).join('')}</select></div><div class="form-group"><label>Tenant Photo (optional)</label><input type="file" name="photo" accept="image/*" id="tenant-photo-file-input"><img id="tenant-photo-preview" src="${t.photo||''}" style="display:${t.photo?'block':'none'}; margin-top: 1rem;" class="photo-preview-element"></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" id="remove-tenant-photo" name="removePhoto" style="width:auto;margin-right:0.5rem;"><label for="remove-tenant-photo" style="margin:0;">Remove current tenant photo</label></div><div class="form-group" style="display:flex;align-items:center;"><input type="checkbox" name="isVerified" id="isVerified" style="width:auto;margin-right:0.5rem;" ${t.isVerified?'checked':''}}><label for="isVerified" style="margin:0;">Identity Verified</label></div><div class="form-actions"><button type="button" class="action-btn btn-cancel" data-action="close-modal">Cancel</button><button type="submit" class="action-btn btn-primary">Save Changes</button></div></form></div></div>`;
                     } else if (type === 'settleSecurityDeposit') {
                         const tenantPayments = (this.state.payments || []).filter(p => p.tenantId === id);
                         const sdPaid = tenantPayments.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
@@ -1870,6 +1913,66 @@
                             </form></div></div>`;
                     }
                     mC.innerHTML=mH; 
+
+                    // --- Add/Edit Room photo removal logic ---
+                    if (type === 'editRoom') {
+                        const roomPhotoFileInput = mC.querySelector('#room-photo-file-input');
+                        const roomPhotoPreview = mC.querySelector('#room-photo-preview');
+                        const removeRoomPhotoCheckbox = mC.querySelector('#remove-room-photo');
+                        const room = (this.state.rooms || []).find(rm => rm.id === id);
+
+                        if (room && !room.photo) { // If no photo exists, initially check 'remove photo'
+                            removeRoomPhotoCheckbox.checked = true;
+                            roomPhotoFileInput.disabled = true;
+                            roomPhotoPreview.style.display = 'none';
+                        }
+                        
+                        removeRoomPhotoCheckbox.addEventListener('change', () => {
+                            if (removeRoomPhotoCheckbox.checked) {
+                                roomPhotoPreview.src = '';
+                                roomPhotoPreview.style.display = 'none';
+                                roomPhotoFileInput.value = ''; // Clear the file input
+                                roomPhotoFileInput.disabled = true; // Disable file input
+                            } else {
+                                roomPhotoFileInput.disabled = false; // Enable file input
+                                // Restore preview if there was an original photo
+                                if (room && room.photo) {
+                                    roomPhotoPreview.src = room.photo;
+                                    roomPhotoPreview.style.display = 'block';
+                                }
+                            }
+                        });
+                    }
+
+                    // --- Add/Edit Tenant photo removal logic ---
+                    if (type === 'editTenant') {
+                        const tenantPhotoFileInput = mC.querySelector('#tenant-photo-file-input');
+                        const tenantPhotoPreview = mC.querySelector('#tenant-photo-preview');
+                        const removeTenantPhotoCheckbox = mC.querySelector('#remove-tenant-photo');
+                        const tenant = (this.state.tenants || []).find(tn => tn.id === id);
+
+                        if (tenant && !tenant.photo) { // If no photo exists, initially check 'remove photo'
+                            removeTenantPhotoCheckbox.checked = true;
+                            tenantPhotoFileInput.disabled = true;
+                            tenantPhotoPreview.style.display = 'none';
+                        }
+                        
+                        removeTenantPhotoCheckbox.addEventListener('change', () => {
+                            if (removeTenantPhotoCheckbox.checked) {
+                                tenantPhotoPreview.src = '';
+                                tenantPhotoPreview.style.display = 'none';
+                                tenantPhotoFileInput.value = ''; // Clear the file input
+                                tenantPhotoFileInput.disabled = true; // Disable file input
+                            } else {
+                                tenantPhotoFileInput.disabled = false; // Enable file input
+                                // Restore preview if there was an original photo
+                                if (tenant && tenant.photo) {
+                                    tenantPhotoPreview.src = tenant.photo;
+                                    tenantPhotoPreview.style.display = 'block';
+                                }
+                            }
+                        });
+                    }
 
                     if (type === 'settleSecurityDeposit') {
                         const refundInput = mC.querySelector('#refund-amount');
@@ -1918,8 +2021,8 @@
                 
                 async handleRoomSubmit(f) { 
                     const d=new FormData(f);
-                    const photoFile = d.get('photo');
-                    const photoUrl = await this.uploadPhotoToDrive(photoFile);
+                    const photoFile = f.querySelector('#room-photo-file-input').files[0];
+                    const photoUrl = photoFile && photoFile.size > 0 ? await this.uploadPhotoToDrive(photoFile) : null;
 
                     this.state.rooms.push({
                         id:`room_${Date.now()}`,
@@ -1938,6 +2041,9 @@
                     const rId=d.get('roomId');
                     if(!rId){this.showToast('Please select a room.','error');return;}
                     
+                    const photoFile = f.querySelector('#tenant-photo-file-input').files[0];
+                    const photoUrl = photoFile && photoFile.size > 0 ? await this.uploadPhotoToDrive(photoFile) : null;
+
                     const nT={
                         id:`tenant_${Date.now()}`,
                         name:d.get('name'),
@@ -1945,7 +2051,8 @@
                         moveInDate:d.get('moveInDate'),
                         isVerified:d.get('isVerified')==='on',
                         roomId:rId,
-                        initialSecurityDeposit: parseFloat(d.get('initialSecurityDeposit') || '0') // Store initial SD
+                        initialSecurityDeposit: parseFloat(d.get('initialSecurityDeposit') || '0'), // Store initial SD
+                        photo: photoUrl // Store URL
                     };
                     this.state.tenants.push(nT);
 
@@ -1992,18 +2099,42 @@
                     const id=f.dataset.id,r=this.state.rooms.find(rm=>rm.id===id);
                     if(!r)return;
                     const d=new FormData(f);
+                    const removePhoto = d.get('removePhoto') === 'on';
+
                     r.number=d.get('number');
                     r.rent=parseFloat(d.get('rent'));
-                    const p=d.get('photo');
-                    if(p&&p.size>0)r.photo=await this.uploadPhotoToDrive(p); // Update photo if new one selected
+                    
+                    if (removePhoto) {
+                        r.photo = null; // Set photo to null if requested to remove
+                    } else {
+                        const photoFile = f.querySelector('#room-photo-file-input').files[0]; // Get file from the specific input
+                        if(photoFile && photoFile.size > 0) { // Check if a new file was selected
+                            r.photo = await this.uploadPhotoToDrive(photoFile); // Upload and update
+                        }
+                        // If removePhoto is false AND no new file is selected, r.photo remains unchanged (correct behavior)
+                    }
+
                     this.triggerAutoSave();this.closeModal();this.render();this.showToast('Room details updated!');
                 },
                 async handleEditTenantSubmit(f) { 
                     const id=f.dataset.id,t=this.state.tenants.find(tn=>tn.id===id);
                     if(!t)return;
                     const d=new FormData(f),oRId=t.roomId,nRId=d.get('roomId');
+                    
+                    const removePhoto = d.get('removePhoto') === 'on';
+
                     t.name=d.get('name');t.phone=d.get('phone');t.moveInDate=d.get('moveInDate');t.isVerified=d.get('isVerified')==='on';t.roomId=nRId;
-                    t.initialSecurityDeposit = parseFloat(d.get('initialSecurityDeposit') || '0'); // Update initial SD, but actual balance is from payments
+                    t.initialSecurityDeposit = parseFloat(d.get('initialSecurityDeposit') || '0');
+
+                    if (removePhoto) {
+                        t.photo = null;
+                    } else {
+                        const photoFile = f.querySelector('#tenant-photo-file-input').files[0];
+                        if(photoFile && photoFile.size > 0) {
+                            t.photo = await this.uploadPhotoToDrive(photoFile);
+                        }
+                    }
+                    
                     if(oRId!==nRId){
                         const oR=this.state.rooms.find(r=>r.id===oRId);if(oR){oR.status='available';oR.tenantId=null;}
                         const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}
@@ -2297,27 +2428,28 @@
                     const u=`https://wa.me/${fP}?text=${encodeURIComponent(message)}`;
                     window.open(u,'_blank');
                 },
-                showToast(msg, type='success') {
-                    const t=document.getElementById('toast');
-                    if (!t) return;
-                    t.textContent=msg;
-                    t.className=`show ${type}`;
-                    setTimeout(()=>t.className=t.className.replace('show',''),3000);
-                },
                 previewPhoto(e) {
-                    const p=document.getElementById('photo-preview');
-                    if(!p)return;
-                    const f=e.target.files[0];
-                    if(f){
-                        const r=new FileReader();
-                        r.onload=ev=>{
-                            p.src=ev.target.result;
-                            p.style.display='block';
+                    const inputElement = e.target;
+                    // Find the associated preview element by ID convention (e.g., 'room-photo-file-input' -> 'room-photo-preview')
+                    const previewElementId = inputElement.id.replace('-file-input', '-preview');
+                    const previewElement = document.getElementById(previewElementId);
+                    
+                    if (!previewElement) {
+                        console.warn(`No preview element found for input with ID: ${inputElement.id}`);
+                        return;
+                    }
+
+                    const f = inputElement.files[0];
+                    if (f) {
+                        const r = new FileReader();
+                        r.onload = ev => {
+                            previewElement.src = ev.target.result;
+                            previewElement.style.display = 'block';
                         };
                         r.readAsDataURL(f);
                     } else {
-                        p.src = '';
-                        p.style.display = 'none';
+                        previewElement.src = '';
+                        previewElement.style.display = 'none';
                     }
                 },
             };
