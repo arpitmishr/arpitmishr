@@ -1311,29 +1311,37 @@
                     }
                     if (syncStatusSpan) syncStatusSpan.textContent = 'Syncing...';
                     
-                    // Removed: this.showToast("Saving data to Google Drive...", "info"); // Only show success/error after completion
-
                     try {
-                        if (!this.appFolderId) await this._findOrCreateAppFolder();
+                        if (!this.appFolderId) {
+                            console.log("SaveData: App folder ID not found, attempting to create/find...");
+                            await this._findOrCreateAppFolder();
+                            console.log("SaveData: App folder ID obtained:", this.appFolderId);
+                        }
 
                         const dataToSave = JSON.stringify(this.state, null, 2);
+                        
+                        console.log(`SaveData: Attempting to save main data file (${this.DATA_FILE_NAME}). Current driveFileId: ${this.driveFileId}`);
 
-                        // --- 1. Save the main data file ---
+                        // --- 1. Prepare main data file save promise ---
                         const mainSavePromise = this._performFileUpload(this.DATA_FILE_NAME, dataToSave, this.driveFileId, this.appFolderId)
                             .then(fileId => {
                                 if (!this.driveFileId) { 
                                     this.driveFileId = fileId; 
                                     this.userRole = 'owner';
+                                    console.log("SaveData: Main data file created. New driveFileId:", this.driveFileId);
+                                } else {
+                                    console.log("SaveData: Main data file updated. driveFileId remains:", this.driveFileId);
                                 }
                             });
 
-                        // --- 2. Save the monthly record file ---
+                        // --- 2. Prepare monthly record file save promise ---
                         const now = new Date();
                         const monthName = now.toLocaleString('default', { month: 'long' });
                         const year = now.getFullYear();
                         const monthlyFileName = this.MONTHLY_FILENAME_TEMPLATE(monthName, year);
                         
                         const monthlyFileId = await this._findFileByNameInFolder(monthlyFileName, this.appFolderId);
+                        console.log(`SaveData: Attempting to save monthly record file (${monthlyFileName}). Existing ID: ${monthlyFileId}`);
                         const monthlySavePromise = this._performFileUpload(monthlyFileName, dataToSave, monthlyFileId, this.appFolderId);
                         
                         // --- Execute both save operations in parallel ---
@@ -1341,11 +1349,12 @@
 
                         this.showToast('Data & monthly record saved successfully!', 'success');
                         if (syncStatusSpan) syncStatusSpan.textContent = 'Synced!';
-                        setTimeout(() => { if (syncStatusSpan && syncStatusSpan.textContent === 'Synced!') syncStatusSpan.textContent = ''; }, 3000); // Clear after a few seconds
+                        // Keep 'Synced!' visible for a few seconds, then clear
+                        setTimeout(() => { if (syncStatusSpan && syncStatusSpan.textContent === 'Synced!') syncStatusSpan.textContent = ''; }, 3000); 
 
                     } catch (e) {
-                        console.error("Error saving data:", e);
-                        this.showToast("An error occurred during save. See console.", "error");
+                        console.error("SaveData: Error saving data:", e);
+                        this.showToast("An error occurred during save. Changes might not be persistent. Check console for details.", "error");
                         if (syncStatusSpan) syncStatusSpan.textContent = 'Sync failed!';
                     } finally {
                         this.isSaving = false;
