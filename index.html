@@ -618,7 +618,7 @@
             z-index: 1000;
             opacity: 0;
             pointer-events: none;
-            transition: opacity var(--transition-speed) ease;
+            transition: opacity 0.3s ease; /* Adjusted transition for smoother modal pop-up */
         }
         .modal-container:has(.modal.active) {
             opacity: 1;
@@ -631,7 +631,7 @@
             max-width: 500px;
             width: 90%;
             transform: translateY(-20px);
-            transition: transform var(--transition-speed) ease;
+            transition: transform 0.3s ease; /* Adjusted transition */
             display: none; /* Hidden by default */
             overflow: hidden;
         }
@@ -857,7 +857,7 @@
             <nav class="sidebar-nav">
                 <ul>
                     <li><a href="#" class="nav-link active" data-action="navigate" data-view="dashboard">
-                        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8v-6h-8v10zm0-18v6h8V3h-8z"/></svg>
                         Dashboard
                     </a></li>
                     <li><a href="#" class="nav-link" data-action="navigate" data-view="rooms">
@@ -909,12 +909,15 @@
         (window.onload = () => {
             const app = {
                 // --- Configuration ---
-                CLIENT_ID: '460969544827-21ethacfepnho56k8j89dtaq58rj0oem.apps.googleusercontent.com', // Replace with your actual CLIENT_ID
-                API_KEY: 'AIzaSyDJ3soSuJgHcbD8beauFPWd06wJWws3ps', // Replace with your actual API_KEY
+                // >>>>>>> IMPORTANT: REPLACE THESE WITH YOUR ACTUAL GOOGLE CLOUD PROJECT CREDENTIALS <<<<<<<
+                // CLIENT_ID: Go to Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs (Web application)
+                // API_KEY: Go to Google Cloud Console -> APIs & Services -> Credentials -> API Keys
+                CLIENT_ID: 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com', 
+                API_KEY: 'YOUR_API_KEY_HERE', 
                 SCOPES: 'https://www.googleapis.com/auth/drive.file', // Scope for app-specific files
                 APP_FOLDER_NAME: 'TenantManagementApp',
                 DATA_FILE_NAME: 'tenant_data.json', // The MASTER file for app operation
-                MONTHLY_FILENAME_TEMPLATE: (month, year) => `${month.toLowerCase()}_${year}tenant_record.json`, // Typo corrected: tanent -> tenant
+                MONTHLY_FILENAME_TEMPLATE: (month, year) => `${month.toLowerCase()}_${year}tenant_record.json`,
                 
                 tokenClient: null,
                 appFolderId: null,
@@ -943,16 +946,28 @@
                 },
 
                 async initializeGapiClient() {
-                    await gapi.client.init({
-                        apiKey: this.API_KEY,
-                        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-                    });
-                    document.getElementById('signin-btn').disabled = false;
-                    document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
+                    try {
+                        await gapi.client.init({
+                            apiKey: this.API_KEY,
+                            discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+                        });
+                        document.getElementById('signin-btn').disabled = false;
+                        document.getElementById('auth-status').textContent = 'Ready. Please sign in.';
+                    } catch (error) {
+                        console.error("Error initializing Google API client:", error);
+                        document.getElementById('auth-status').textContent = 'Error initializing. Check API Key and console for details.';
+                        this.showToast(`Error initializing Google APIs. Please check your network and API Key configuration in Google Cloud Console.`, 'error');
+                    }
                 },
 
                 async handleAuthResponse(response) {
-                    if (response.error) { this.showToast(`Error: ${response.error.message || response.error}`, 'error'); return; } // Added .message for better error reporting
+                    if (response.error) { 
+                        console.error("Authentication Error:", response.error);
+                        let errorMessage = `Authentication failed: ${response.error.error_description || response.error.message || JSON.stringify(response.error)}. Please ensure 'Authorized JavaScript origins' in your Google Cloud OAuth Client ID are correctly set for this page's URL.`;
+                        this.showToast(errorMessage, 'error'); 
+                        document.getElementById('auth-status').textContent = 'Authentication Failed.';
+                        return; 
+                    }
                     document.getElementById('login-screen').style.display = 'none';
                     document.getElementById('app-container').classList.add('visible');
                     document.getElementById('user-profile-container').classList.add('visible'); // Show user profile after login
@@ -980,7 +995,6 @@
                         const res = await gapi.client.request({ path: 'https://www.googleapis.com/oauth2/v3/userinfo' });
                         document.getElementById('user-name').textContent = res.result.name;
                         document.getElementById('user-img').src = res.result.picture;
-                        // document.getElementById('user-profile-container').style.display = 'flex'; // Handled by visible class
                     } catch (e) { console.error("Could not fetch user profile", e); }
                 },
                 
@@ -1495,8 +1509,8 @@
                         
                         let meterManagement = o ? 
                             (r.meterStatus === 'broken' ? 
-                                `<button class="action-btn btn-secondary" data-action="install-new-meter" data-id="${id}" style="width:100%;">Install New Meter</button>` : 
-                                `<button class="action-btn btn-danger" data-action="report-meter-broken" data-id="${id}" style="width:100%;">Report Meter Broken</button>`) : 
+                                `<button class="action-btn btn-secondary" style="width:100%;" data-action="install-new-meter" data-id="${id}">Install New Meter</button>` : 
+                                `<button class="action-btn btn-danger" style="width:100%;" data-action="report-meter-broken" data-id="${id}">Report Meter Broken</button>`) : 
                             `<p style="color:var(--text-light);">Status: <strong>${r.meterStatus}</strong></p>`;
                         
                         const utilityForm = o ? `<div class="detail-card"><h4>Add Utility Reading</h4><form id="utility-form" data-room-id="${id}"><div class="form-group"><label>New Meter Reading</label><input type="number" id="meter-reading" required ${r.meterStatus==='broken'?'disabled':''}></div><button type="submit" class="action-btn btn-primary" style="width:100%" ${r.meterStatus==='broken'?'disabled':''}>Generate Bill</button></form></div>` : '';
@@ -1850,7 +1864,7 @@
                     if (type === 'refund') {
                         const refundAmount = amount; // amount is directly the refund value here
                         if (refundAmount <= 0) { // Allow 0 refund, but warn if negative
-                            this.showToast('Invalid refund amount.', 'error');
+                            this.showToast('Invalid refund amount. Must be a positive number.', 'error');
                             return;
                         }
                         if (refundAmount > currentSDBalance) {
@@ -1959,7 +1973,7 @@
                         this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:i,meterInstallationId:r.meterInstallationId});
                         this.triggerAutoSave();
                         this.render();
-                        this.showToast('New meter installed successfully!');
+                        this.showToast('New meter installed!');
                     } else {
                         this.showToast('Room not found.','error');
                     }
@@ -2083,7 +2097,8 @@
                         if (d.type === 'rent') {
                             paidForThisDue = allPayments.filter(p => p.category === 'Rent' && 
                                 new Date(p.date).getFullYear() === new Date(d.date).getFullYear() && 
-                                new Date(p.date).getMonth() === new Date(d.date).getMonth()
+                                new Date(p.date).getMonth() === new Date(d.date).getMonth() &&
+                                d.description.includes(new Date(p.date).toLocaleString('default', { month: 'long', year: 'numeric' })) // More specific check for month
                             ).reduce((s, p) => s + p.amount, 0);
                         } else if (d.type === 'utility') {
                             paidForThisDue = allPayments.filter(p => p.category === 'Electricity' && 
