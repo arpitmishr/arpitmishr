@@ -1161,10 +1161,12 @@
                         document.getElementById('user-name').textContent = res.result.name;
                         document.getElementById('user-img').src = res.result.picture;
                         console.log('User profile updated:', res.result.name);
-                    } catch (e) { console.error("Could not fetch user profile", e); }
+                    }
+                    catch (e) { console.error("Could not fetch user profile", e); }
                 },
                 
                 startAppLogic() {
+                    console.log('App logic started. Current user role:', this.userRole); // Log current user role
                     if (this.isOwner()) {
                         const duesGenerated = this.generateMissingRentDues();
                         if (duesGenerated > 0) { this.triggerAutoSave(); this.showToast(`${duesGenerated} new rent due(s) generated.`); }
@@ -1224,7 +1226,7 @@
                             this.driveFileId = file.id;
                             // Determine user role based on file edit capabilities
                             this.userRole = file.capabilities.canEdit ? 'owner' : 'viewer'; 
-                            console.log('Main data file found:', this.driveFileId, 'User role:', this.userRole);
+                            console.log('Main data file found:', this.driveFileId, 'User role set to:', this.userRole);
 
                             // Fetch file content
                             const fileContentResponse = await gapi.client.drive.files.get({ 
@@ -1268,10 +1270,14 @@
 
                 // Auto-save mechanism: debounces saves by 2 seconds
                 triggerAutoSave() {
-                    if (!this.isOwner()) return;
+                    if (!this.isOwner()) {
+                        console.log('Auto-save skipped: Not in owner mode.');
+                        return;
+                    }
                     clearTimeout(this.saveTimeout);
                     const syncStatusSpan = document.getElementById('sync-status');
                     if (syncStatusSpan) syncStatusSpan.textContent = 'Changes detected...';
+                    console.log('Auto-save triggered. Saving in 2 seconds...');
                     this.saveTimeout = setTimeout(() => this.saveData(), 2000);
                 },
                 
@@ -1334,7 +1340,10 @@
                 },
 
                 async saveData() {
-                    if (!this.isOwner() || this.isSaving) return;
+                    if (!this.isOwner() || this.isSaving) {
+                        console.log('SaveData: Save skipped. Not in owner mode or already saving.');
+                        return;
+                    }
                     this.isSaving = true;
                     
                     const manualSaveBtn = document.getElementById('manual-save-btn');
@@ -1388,6 +1397,7 @@
                         if (syncStatusSpan) syncStatusSpan.textContent = 'Synced!';
                         // Keep 'Synced!' visible for a few seconds, then clear
                         setTimeout(() => { if (syncStatusSpan && syncStatusSpan.textContent === 'Synced!') syncStatusSpan.textContent = ''; }, 3000); 
+                        console.log('SaveData: All files saved successfully.');
 
                     } catch (e) {
                         console.error("SaveData: Error saving data:", e);
@@ -1593,8 +1603,15 @@
                             .filter(tenant => tenant.balance > 0).sort((a, b) => b.balance - a.balance);
 
                         const tenantDuesSection = tenantsWithDues.length > 0 ? `<div class="dashboard-section" style="margin-top: 1.5rem;"><h3>Pending Dues by Tenant</h3><div id="tenant-dues-list">${tenantsWithDues.map(t => `<div class="alert-item danger" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><span>${t.name}</span><strong>${settings.currencySymbol}${t.balance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></div>`).join('')}</div></div>` : '';
-                        const quickActions = this.isOwner() ? `<button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>` : `<p style="text-align:center;color:var(--text-light);padding:1rem;"><i>View-only mode. No quick actions available.</i></p>`;
                         
+                        // Conditional rendering for Quick Actions based on isOwner()
+                        const quickActionsHtml = this.isOwner() ? `
+                            <button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button>
+                            <button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>
+                        ` : `
+                            <p style="text-align:center;color:var(--text-light);padding:1rem;"><i>View-only mode. No quick actions available.</i></p>
+                        `;
+
                         return `<div id="dashboard" class="view active">
                             <div class="section-header">
                                 <h2 class="section-title">Dashboard</h2>
@@ -1617,7 +1634,7 @@
                                 <div class="dashboard-section">
                                     <h3>System Alerts</h3><div id="alert-list">${aH || '<p style="color:var(--text-light);">No system alerts.</p>'}</div>
                                 </div>
-                                <div class="dashboard-section"><h3>Quick Actions</h3>${quickActions}</div>
+                                <div class="dashboard-section"><h3>Quick Actions</h3>${quickActionsHtml}</div>
                             </div>
                             ${tenantDuesSection}
                         </div>`;
