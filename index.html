@@ -254,8 +254,83 @@ window.onload = () => {
             dashboardFilter: 'this_month'
         },
 
+        // --- NEW: Notification System ---
+        notifications: {
+            permission: 'default',
+            notifiedIds: new Set(), // Avoids spamming notifications in a single session
+
+            init() {
+                if (!('Notification' in window)) {
+                    console.log("This browser does not support desktop notifications.");
+                    return;
+                }
+                this.permission = Notification.permission;
+            },
+
+            async requestPermission() {
+                if (!('Notification' in window)) return false;
+                if (this.permission === 'granted') return true;
+                
+                // Browsers require permission to be requested via a user gesture (like a click)
+                const permissionResult = await Notification.requestPermission();
+                this.permission = permissionResult;
+                
+                if (permissionResult === 'granted') {
+                    app.showToast('Notifications enabled!', 'success');
+                    this.show('Notifications Enabled', { body: 'You will now receive alerts for important events.' });
+                    app.render(); // Re-render to hide the button
+                } else {
+                    app.showToast('Notifications were not enabled.', 'warning');
+                }
+                return permissionResult === 'granted';
+            },
+
+            show(title, options) {
+                if (this.permission !== 'granted') return;
+                // Add a default icon to all notifications
+                const finalOptions = {
+                    icon: "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3crect width='100' height='100' rx='15' fill='%236366f1'/%3e%3ctext x='50' y='68' font-size='50' font-weight='bold' fill='white' text-anchor='middle'%3eTR%3c/text%3e%3c/svg%3e",
+                    ...options
+                };
+                new Notification(title, finalOptions);
+            },
+
+            checkAndNotify() {
+                if (this.permission !== 'granted') return;
+
+                // 1. Check for unverified tenants
+                const unverifiedTenants = (app.state.tenants || []).filter(t => !t.isVerified);
+                unverifiedTenants.forEach(tenant => {
+                    const notificationId = `verify_${tenant.id}`;
+                    if (!this.notifiedIds.has(notificationId)) {
+                        this.show('Verification Pending', { body: `Tenant ${tenant.name}'s identity verification is still pending.` });
+                        this.notifiedIds.add(notificationId);
+                    }
+                });
+
+                // 2. Check for tenants with pending dues
+                const tenantsWithDues = (app.state.tenants || [])
+                    .map(tenant => ({
+                        id: tenant.id,
+                        name: tenant.name,
+                        balance: (app.state.dues || []).filter(d => d.tenantId === tenant.id).reduce((s, d) => s + d.amount, 0) - 
+                                 (app.state.payments || []).filter(p => p.tenantId === tenant.id && !p.category.includes('Security Deposit')).reduce((s, p) => s + p.amount, 0)
+                    }))
+                    .filter(tenant => tenant.balance > 0);
+                
+                tenantsWithDues.forEach(tenant => {
+                    const notificationId = `due_${tenant.id}`;
+                    if (!this.notifiedIds.has(notificationId)) {
+                         this.show('Rent Due', { body: `${tenant.name} has a pending balance of ${app.state.settings.currencySymbol}${tenant.balance.toLocaleString('en-IN')}.` });
+                        this.notifiedIds.add(notificationId);
+                    }
+                });
+            }
+        },
+
         // --- CORE: Initialization and Authentication ---
         init() {
+            this.notifications.init(); // Initialize notification system early
             gapi.load('client', this.initializeGapiClient.bind(this));
             this.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: this.CLIENT_ID,
@@ -314,7 +389,8 @@ window.onload = () => {
                 this.showToast('Logged in as Viewer. Actions are restricted.');
             }
             this.addEventListeners();
-            this.navigateTo('dashboard');
+            this.navigateTo('dashboard'); // This will render the UI
+            this.notifications.checkAndNotify(); // Check for notifications after everything is loaded
         },
 
         // --- CORE: Google Drive Data Management & Roles ---
@@ -592,7 +668,8 @@ window.onload = () => {
                     'share-receipt-whatsapp':()=>this.shareReceiptWhatsApp(i),
                     'share-dues-whatsapp':()=>this.shareDuesWhatsApp(i),
                     'manual-save':()=>this.saveData(),
-                    'settle-security-deposit': () => this.showModal('settleSecurityDeposit', i)
+                    'settle-security-deposit': () => this.showModal('settleSecurityDeposit', i),
+                    'enable-notifications': () => this.notifications.requestPermission()
                 };
                 if(A[a])A[a]();
             });
@@ -663,10 +740,15 @@ window.onload = () => {
                 const tenantDuesSection = tenantsWithDues.length > 0 ? `<div class="dashboard-section" style="margin-top: 1.5rem;"><h3>Pending Dues by Tenant</h3><div id="tenant-dues-list">${tenantsWithDues.map(t => `<div class="alert-item danger" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><span>${t.name}</span><strong>${settings.currencySymbol}${t.balance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></div>`).join('')}</div></div>` : '';
                 const quickActions = this.isOwner() ? `<button class="action-btn btn-primary" style="width:100%;margin-bottom:1rem;" data-action="show-modal" data-modal-type="addRoom">Add New Room</button><button class="action-btn btn-secondary" style="width:100%;" data-action="show-modal" data-modal-type="addTenant">Add New Tenant</button>` : `<p style="text-align:center;color:var(--text-light)"><i>View-only mode.</i></p>`;
                 
+                const notificationBtn = (this.notifications.permission !== 'granted' && 'Notification' in window)
+                    ? `<button class="action-btn btn-warning" data-action="enable-notifications">Enable Alerts</button>`
+                    : '';
+
                 return `<div id="dashboard" class="view active">
                     <div class="section-header">
                         <h2 class="section-title">Dashboard</h2>
                         <div class="header-actions">
+                             ${notificationBtn}
                             <select id="dashboard-filter" style="padding: 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem;">
                                 <option value="this_month" ${dashboardFilter === 'this_month' ? 'selected' : ''}>This Month</option>
                                 <option value="last_month" ${dashboardFilter === 'last_month' ? 'selected' : ''}>Last Month</option>
@@ -1015,6 +1097,7 @@ window.onload = () => {
             const r=this.state.rooms.find(rm=>rm.id===rId);
             if(r){r.status='occupied';r.tenantId=nT.id;}
             this.triggerAutoSave();this.closeModal();this.navigateTo('tenants');this.showToast('Tenant added!');
+            this.notifications.checkAndNotify(); // Check for notifications after adding a new tenant
         },
         handleSettingsSubmit(f) {
             this.state.settings.electricityRate=parseFloat(f.querySelector('#electricity-rate').value);
@@ -1029,7 +1112,9 @@ window.onload = () => {
             const c=nR-lR,b=c*this.state.settings.electricityRate;
             this.state.utilityReadings.push({id:`ur_${Date.now()}`,roomId:rId,date:new Date().toISOString(),reading:nR,meterInstallationId:r.meterInstallationId});
             if(r?.tenantId)this.state.dues.push({id:`due_${Date.now()}`,tenantId:r.tenantId,amount:parseFloat(b.toFixed(2)),date:new Date().toISOString(),type:'utility',description:`Utility Bill (${c} units)`});
-            this.triggerAutoSave();this.render();this.showToast(`Bill of ${this.state.settings.currencySymbol}${b.toFixed(2)} generated.`);
+            this.triggerAutoSave();this.render();
+            this.showToast(`Bill of ${this.state.settings.currencySymbol}${b.toFixed(2)} generated.`);
+            this.notifications.checkAndNotify(); // Check for notifications after generating a new due
         },
         handlePaymentSubmit(f) { 
             this.state.payments.push({id:`pay_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#payment-amount').value),date:new Date().toISOString(),category:f.querySelector('#payment-category').value,description:f.querySelector('#payment-category').value+" Payment"});
@@ -1038,6 +1123,7 @@ window.onload = () => {
         handleServiceChargeSubmit(f) { 
             this.state.dues.push({id:`due_${Date.now()}`,tenantId:f.dataset.tenantId,amount:parseFloat(f.querySelector('#charge-amount').value),date:new Date().toISOString(),type:'service',description:f.querySelector('#charge-desc').value});
             this.triggerAutoSave();this.render();this.showToast('Service charge added!');
+            this.notifications.checkAndNotify(); // Check for notifications after generating a new due
         },
         async handleEditRoomSubmit(f) { 
             const id=f.dataset.id,r=this.state.rooms.find(rm=>rm.id===id);
@@ -1062,6 +1148,7 @@ window.onload = () => {
                 const nR=this.state.rooms.find(r=>r.id===nRId);if(nR){nR.status='occupied';nR.tenantId=id;}
             }
             this.triggerAutoSave();this.closeModal();this.render();this.showToast('Tenant details updated!');
+            this.notifications.checkAndNotify(); // Re-check notifications as verification status might have changed
         },
         async handleSettleSecurityDeposit(form, tenantId, type, amount, currentDuesBalance = 0) {
             if (!this.isOwner()) {
