@@ -774,7 +774,7 @@ window.onload = () => {
             },
             rooms() { const addRoomBtn=this.isOwner()?`<button class="action-btn btn-primary" data-action="show-modal" data-modal-type="addRoom">Add Room</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Rooms</h2>${addRoomBtn}</div><div class="grid-container">${(this.state.rooms||[]).map(r=>`<div class="data-card" data-action="navigate-detail" data-view="room-detail" data-id="${r.id}"><div class="card-photo" style="background-image:url(${r.photo||''})"><span class="card-status status-${r.status}">${r.status}</span></div><div class="card-content"><h3 class="card-title">Room ${r.number}</h3><p class="card-info">Rent: ${this.state.settings.currencySymbol}${r.rent}/month</p><p class="card-info">Tenant: ${(this.state.tenants||[]).find(t=>t.id===r.tenantId)?.name||'<i>Vacant</i>'}</p></div></div>`).join('')||'<p>No rooms found.</p>'}</div></div>`;},
             tenants() { const addTenantBtn=this.isOwner()?`<button class="action-btn btn-secondary" data-action="show-modal" data-modal-type="addTenant">Add Tenant</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Current Tenants</h2>${addTenantBtn}</div><div class="grid-container">${(this.state.tenants||[]).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"><span class="card-status" style="color:${t.isVerified?'green':'red'}">${t.isVerified?'Verified':'Not Verified'}</span></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Phone: ${t.phone}</p></div></div>`).join('')||'<p>No current tenants found.</p>'}</div></div>`;},
-            leftTenants() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div><div class="grid-container">${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" style="opacity: 0.8;"><div class="card-photo" style="background-image:url(${t.photo||''})"></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room Occupied: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Left On: ${new Date(t.leaveDate).toLocaleDateString()}</p></div></div>`).join('')||'<p>No records of left tenants.</p>'}</div></div>`; },
+            leftTenants() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div><div class="grid-container">${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="leftTenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room Occupied: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Left On: ${new Date(t.leaveDate).toLocaleDateString()}</p></div></div>`).join('')||'<p>No records of left tenants.</p>'}</div></div>`; },
             settings() { 
                 const o = this.isOwner();
                 const saveSection = o ? `<div class="detail-card" style="max-width:500px;margin-top:2rem;">
@@ -951,6 +951,78 @@ window.onload = () => {
                         </div>
                     </div>
                 </div>`; 
+            },
+            // --- NEW TEMPLATE FOR LEFT TENANT DETAIL ---
+            leftTenantDetail(id) { 
+                const t = (this.state.leftTenants || []).find(tn => tn.id === id);
+                if (!t) return `<p>Tenant record not found.</p>`;
+                const r = (this.state.rooms || []).find(rm => rm.id === t.roomId);
+                const d = (this.state.dues || []).filter(du => du.tenantId === id);
+                const p = (this.state.payments || []).filter(pm => pm.tenantId === id);
+                
+                const currentDuesTotal = d.reduce((s, du) => s + du.amount, 0);
+                const currentPaymentsTotal = p.filter(pm => 
+                    pm.category !== 'Security Deposit (Paid)' && 
+                    pm.category !== 'Security Deposit (Refunded)' &&
+                    pm.category !== 'Security Deposit (Adjusted)'
+                ).reduce((s, pm) => s + pm.amount, 0);
+                const balance = currentDuesTotal - currentPaymentsTotal;
+
+                const sdPaid = p.filter(pm => pm.category === 'Security Deposit (Paid)').reduce((s, pm) => s + pm.amount, 0);
+                const sdRefunded = p.filter(pm => pm.category === 'Security Deposit (Refunded)').reduce((s, pm) => s + pm.amount, 0);
+                const sdAdjusted = p.filter(pm => pm.category === 'Security Deposit (Adjusted)').reduce((s, pm) => s + pm.amount, 0);
+                const finalSDBalance = sdPaid - sdRefunded - sdAdjusted;
+
+                const trs = [...d.map(du => ({...du, isDue: true})), ...p.map(pm => ({...pm, isPayment: true}))].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                return `<div class="view active">
+                    <div class="section-header">
+                        <div class="header-actions">
+                            <button class="action-btn btn-cancel" data-action="navigate" data-view="leftTenants">← Back to List</button>
+                        </div>
+                    </div>
+                    <div class="detail-view-header">
+                        <div class="detail-photo" style="background-image:url(${t.photo || ''}); filter: grayscale(1);"></div>
+                        <div class="detail-info">
+                            <h2>${t.name} (Record)</h2>
+                            <p>Formerly in Room ${r?.number || 'N/A'}</p>
+                            <p>${t.isVerified ? '✔ Verified' : '✖ Not Verified'}</p>
+                        </div>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-main">
+                             <div class="detail-card">
+                                <h4>Final Balances</h4>
+                                <ul>
+                                    <li><span>Final Due Balance</span><strong style="color: ${balance > 0 ? 'var(--danger-color)' : 'var(--secondary-color)'};">${this.state.settings.currencySymbol}${balance.toLocaleString('en-IN')}</strong></li>
+                                    <li><span>Final Security Deposit</span><strong>${this.state.settings.currencySymbol}${finalSDBalance.toLocaleString('en-IN')}</strong></li>
+                                </ul>
+                            </div>
+                            <div class="detail-card">
+                                <h4>Transaction History</h4>
+                                <div id="transaction-list">
+                                    ${trs.map(tr => `<div class="transaction-item ${tr.isDue ? 'due' : 'payment'}">
+                                        <div>
+                                            <p><strong>${tr.isDue ? '-' : '+'}${this.state.settings.currencySymbol}${tr.amount.toLocaleString('en-IN')}</strong> - ${tr.description || tr.category}</p>
+                                            <p style="font-size:0.9rem;color:var(--text-light)">${new Date(tr.date).toLocaleDateString()}</p>
+                                        </div>
+                                        ${tr.isPayment ? `<div class="transaction-actions"><button class="action-btn btn-cancel" data-action="generate-receipt" data-id="${tr.id}">Receipt</button></div>` : ''}
+                                    </div>`).join('') || '<p>No transactions found for this tenant.</p>'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-sidebar">
+                            <div class="detail-card">
+                                <h4>Tenant Information</h4>
+                                <ul>
+                                    <li><span>Phone</span><strong>${t.phone}</strong></li>
+                                    <li><span>Move-in Date</span><strong>${new Date(t.moveInDate).toLocaleDateString()}</strong></li>
+                                    <li><span>Left On</span><strong>${new Date(t.leaveDate).toLocaleDateString()}</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
             },
         },
         
