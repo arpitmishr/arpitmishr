@@ -583,6 +583,43 @@ window.onload = () => {
             }
         },
 
+
+
+        async processImport() {
+    if (!this.isOwner()) return;
+    const fileInput = document.getElementById('import-file-input');
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const importedData = JSON.parse(e.target.result);
+            
+            // Basic validation to check if it's a valid app file
+            if (!importedData.rooms || !importedData.tenants) {
+                throw new Error("Invalid file format. Ensure you are uploading a valid app backup.");
+            }
+
+            if (confirm("Are you sure you want to overwrite all current data with this file? This will also update the files on your Google Drive.")) {
+                // Update local state
+                this.state = importedData;
+                
+                // Save to Drive (this updates both the main file and the current monthly file)
+                await this.saveData();
+                
+                this.showToast("Data imported and synced successfully!", "success");
+                this.render(); // Refresh the UI
+            }
+        } catch (err) {
+            console.error(err);
+            this.showToast("Error parsing file: " + err.message, "error");
+        }
+    };
+    reader.readAsText(file);
+},
+        
+
         async uploadPhotoToDrive(file) {
             if (!file || file.size === 0) return ''; // No file selected
 
@@ -667,9 +704,10 @@ window.onload = () => {
                     'install-new-meter':()=>this.installNewMeter(i),
                     'share-receipt-whatsapp':()=>this.shareReceiptWhatsApp(i),
                     'share-dues-whatsapp':()=>this.shareDuesWhatsApp(i),
-                    'manual-save':()=>this.saveData(),
-                    'settle-security-deposit': () => this.showModal('settleSecurityDeposit', i),
-                    'enable-notifications': () => this.notifications.requestPermission()
+                    'manual-save': () => this.saveData(),
+    'process-import': () => this.processImport(), // Add this line
+    'settle-security-deposit': () => this.showModal('settleSecurityDeposit', i),
+    'enable-notifications': () => this.notifications.requestPermission()
                 };
                 if(A[a])A[a]();
             });
@@ -694,11 +732,32 @@ window.onload = () => {
                 if(h[e.target.id])h[e.target.id](e.target);
             });
 
-            document.body.addEventListener('change',e=>{
-                if(e.target.matches('input[type="file"]')&&e.target.id!=='import-file-input')this.previewPhoto(e); 
-                if(e.target.id === 'dashboard-filter'){ this.state.dashboardFilter = e.target.value; this.render(); }
-            });
-        },
+            document.body.addEventListener('change', e => {
+    // Logic for photo previews (skips the JSON import file)
+    if (e.target.matches('input[type="file"]') && e.target.id !== 'import-file-input') {
+        this.previewPhoto(e); 
+    }
+
+    // Logic for dashboard filtering
+    if (e.target.id === 'dashboard-filter') {
+        this.state.dashboardFilter = e.target.value; 
+        this.render(); 
+    }
+
+    // PART B: Logic for the Import File selection
+    if (e.target.id === 'import-file-input') {
+        const fileName = e.target.files[0]?.name;
+        if (fileName) {
+            // Show the file name to the user
+            const infoText = document.getElementById('import-file-name');
+            if(infoText) infoText.textContent = "Selected: " + fileName;
+            
+            // Show the hidden "Confirm Upload" button
+            const confirmBtn = document.getElementById('confirm-import-btn');
+            if(confirmBtn) confirmBtn.style.display = 'inline-flex';
+        }
+    }
+});
         
         // --- TEMPLATES (with Role-Based UI & New Features) ---
         templates: {
@@ -776,31 +835,42 @@ window.onload = () => {
             tenants() { const addTenantBtn=this.isOwner()?`<button class="action-btn btn-secondary" data-action="show-modal" data-modal-type="addTenant">Add Tenant</button>`:``;return `<div class="view active"><div class="section-header"><h2 class="section-title">Current Tenants</h2>${addTenantBtn}</div><div class="grid-container">${(this.state.tenants||[]).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="tenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"><span class="card-status" style="color:${t.isVerified?'green':'red'}">${t.isVerified?'Verified':'Not Verified'}</span></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Phone: ${t.phone}</p></div></div>`).join('')||'<p>No current tenants found.</p>'}</div></div>`;},
             leftTenants() { return `<div class="view active"><div class="section-header"><h2 class="section-title">Left Tenant Records</h2></div><div class="grid-container">${(this.state.leftTenants||[]).sort((a,b) => new Date(b.leaveDate) - new Date(a.leaveDate)).map(t=>`<div class="data-card" data-action="navigate-detail" data-view="leftTenant-detail" data-id="${t.id}"><div class="card-photo" style="background-image:url(${t.photo||''})"></div><div class="card-content"><h3 class="card-title">${t.name}</h3><p class="card-info">Room Occupied: ${(this.state.rooms||[]).find(r=>r.id===t.roomId)?.number||'N/A'}</p><p class="card-info">Left On: ${new Date(t.leaveDate).toLocaleDateString()}</p></div></div>`).join('')||'<p>No records of left tenants.</p>'}</div></div>`; },
             settings() { 
-                const o = this.isOwner();
-                const saveSection = o ? `<div class="detail-card" style="max-width:500px;margin-top:2rem;">
-                                            <h4>Data Synchronization</h4>
-                                            <p style="margin-bottom:1rem;color:var(--text-light)">Manually save all current data to your Google Drive. The app also saves automatically. This will update both the main data file and the record file for the current month.</p>
-                                            <button id="manual-save-btn" class="action-btn btn-secondary" data-action="manual-save">Sync Data to Drive</button>
-                                         </div>` : '';
-                return `<div class="view active">
-                            <div class="section-header"><h2 class="section-title">Settings</h2></div>
-                            <div class="detail-card" style="max-width:500px;">
-                                <form id="settings-form">
-                                    <h4>General Settings</h4>
-                                    <div class="form-group">
-                                        <label>Electricity Rate (per unit)</label>
-                                        <input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}" ${!o?'readonly':''}>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Currency Symbol</label>
-                                        <input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}" ${!o?'readonly':''}>
-                                    </div>
-                                    <div class="form-actions">${o?'<button type="submit" class="action-btn btn-primary">Save Settings</button>':''}</div>
-                                </form>
-                            </div>
-                            ${saveSection}
-                        </div>`;
-            },
+    const o = this.isOwner();
+    const saveSection = o ? `
+        <div class="detail-card" style="max-width:500px; margin-top:2rem;">
+            <h4>Data Synchronization</h4>
+            <p style="margin-bottom:1rem;color:var(--text-light)">Manually save current app data to Google Drive.</p>
+            <button id="manual-save-btn" class="action-btn btn-secondary" data-action="manual-save">Sync Data to Drive</button>
+        </div>
+
+        <div class="detail-card" style="max-width:500px; margin-top:2rem;">
+            <h4>Import / Restore Data</h4>
+            <p style="margin-bottom:1rem;color:var(--text-light)">Upload a backup JSON file (Main file or Monthly record) to restore app data. <b>Note: This will overwrite current data.</b></p>
+            <input type="file" id="import-file-input" accept=".json" style="margin-bottom:1rem; display:none;">
+            <button class="action-btn btn-warning" onclick="document.getElementById('import-file-input').click()">Select JSON File</button>
+            <button id="confirm-import-btn" class="action-btn btn-danger" style="display:none;" data-action="process-import">Upload & Overwrite to Drive</button>
+            <p id="import-file-name" style="margin-top:0.5rem; font-size:0.9rem; color:var(--secondary-color)"></p>
+        </div>` : '';
+
+    return `<div class="view active">
+                <div class="section-header"><h2 class="section-title">Settings</h2></div>
+                <div class="detail-card" style="max-width:500px;">
+                    <form id="settings-form">
+                        <h4>General Settings</h4>
+                        <div class="form-group">
+                            <label>Electricity Rate (per unit)</label>
+                            <input type="number" step="0.01" id="electricity-rate" value="${this.state.settings.electricityRate}" ${!o?'readonly':''}>
+                        </div>
+                        <div class="form-group">
+                            <label>Currency Symbol</label>
+                            <input type="text" id="currency-symbol" value="${this.state.settings.currencySymbol}" ${!o?'readonly':''}>
+                        </div>
+                        <div class="form-actions">${o?'<button type="submit" class="action-btn btn-primary">Save Settings</button>':''}</div>
+                    </form>
+                </div>
+                ${saveSection}
+            </div>`;
+},
             roomDetail(id) { 
                 const r=(this.state.rooms||[]).find(rm=>rm.id===id);
                 if(!r)return`<p>Room not found.</p>`;
