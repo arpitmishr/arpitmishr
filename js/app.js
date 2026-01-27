@@ -1,7 +1,7 @@
-import { db } from './firebase-config.js';
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { handleFileUpload } from './data-upload.js';
 
-console.log("App.js Loaded");
+// ... (Keep your existing imports and testConnection code) ...
+
 
 // Function to test database connection
 async function testConnection() {
@@ -24,13 +24,18 @@ testConnection();
 // Import the upload function
 import { uploadToFirebase } from './data-upload.js';
 
-// Setup the Upload Button Listener
-const uploadBtn = document.getElementById('uploadBtn');
-if (uploadBtn) {
-    uploadBtn.addEventListener('click', () => {
-        const confirmAction = confirm("Are you sure? This will overwrite data with the JSON in data-upload.js");
-        if (confirmAction) {
-            uploadToFirebase();
+
+
+
+// Setup the File Upload Listener
+const processFileBtn = document.getElementById('processFileBtn');
+const fileInput = document.getElementById('jsonFileInput');
+
+if (processFileBtn && fileInput) {
+    processFileBtn.addEventListener('click', () => {
+        const file = fileInput.files[0];
+        if (confirm("This will overwrite database data with the selected file (Last 4 months only). Continue?")) {
+            handleFileUpload(file);
         }
     });
 }
