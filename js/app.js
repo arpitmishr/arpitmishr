@@ -15,3 +15,22 @@ async function testConnection() {
 }
 
 testConnection();
+
+
+
+
+
+
+// Import the upload function
+import { uploadToFirebase } from './data-upload.js';
+
+// Setup the Upload Button Listener
+const uploadBtn = document.getElementById('uploadBtn');
+if (uploadBtn) {
+    uploadBtn.addEventListener('click', () => {
+        const confirmAction = confirm("Are you sure? This will overwrite data with the JSON in data-upload.js");
+        if (confirmAction) {
+            uploadToFirebase();
+        }
+    });
+}
