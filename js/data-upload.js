@@ -1,109 +1,124 @@
-// js/data-upload.js
 import { db } from './firebase-config.js';
-import { collection, doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 1. PASTE YOUR FULL JSON DATA BELOW
-// (Copy the content between { and } from your text file)
-const initialData = {
-    // --- START PASTING HERE ---
-    
-    // Paste the "rooms": [...], "tenants": [...], etc. here.
-    // If you want to test with empty data first, just leave this structure:
-    "rooms": [],
-    "tenants": [],
-    "leftTenants": [],
-    "dues": [],
-    "payments": [],
-    "utilityReadings": [],
-    "settings": { "electricityRate": 7, "currencySymbol": "₹" }
-
-    // --- END PASTING HERE ---
-};
-
-// 2. Function to Upload Data
-export async function uploadToFirebase() {
-    console.log("Starting Data Upload...");
-    
-    // We use a "Batch" to do multiple writes at once (Safety mechanism)
-    // Note: Firestore batches allow max 500 operations. If you have more, we might need a loop.
-    const batch = writeBatch(db);
-    let operationCount = 0;
-
-    // A. Upload Rooms
-    if (initialData.rooms) {
-        initialData.rooms.forEach(room => {
-            const ref = doc(db, "rooms", room.id); // Use the JSON 'id' as the Document ID
-            batch.set(ref, room);
-            operationCount++;
-        });
-        console.log(`Queued ${initialData.rooms.length} rooms.`);
+export async function handleFileUpload(file) {
+    if (!file) {
+        alert("Please select a file first.");
+        return;
     }
 
-    // B. Upload Tenants
-    if (initialData.tenants) {
-        initialData.tenants.forEach(tenant => {
-            const ref = doc(db, "tenants", tenant.id);
-            batch.set(ref, tenant);
-            operationCount++;
-        });
-        console.log(`Queued ${initialData.tenants.length} tenants.`);
-    }
+    const reader = new FileReader();
 
-    // C. Upload Left Tenants (History)
-    if (initialData.leftTenants) {
-        initialData.leftTenants.forEach(lt => {
-            const ref = doc(db, "leftTenants", lt.id);
-            batch.set(ref, lt);
-            operationCount++;
-        });
-        console.log(`Queued ${initialData.leftTenants.length} left tenants.`);
-    }
-
-    // D. Upload Dues
-    if (initialData.dues) {
-        initialData.dues.forEach(due => {
-            const ref = doc(db, "dues", due.id);
-            batch.set(ref, due);
-            operationCount++;
-        });
-    }
-
-    // E. Upload Payments
-    if (initialData.payments) {
-        initialData.payments.forEach(pay => {
-            const ref = doc(db, "payments", pay.id);
-            batch.set(ref, pay);
-            operationCount++;
-        });
-    }
-
-    // F. Upload Readings
-    if (initialData.utilityReadings) {
-        initialData.utilityReadings.forEach(ur => {
-            const ref = doc(db, "utilityReadings", ur.id);
-            batch.set(ref, ur);
-            operationCount++;
-        });
-    }
-
-    // G. Upload Settings (Single Document)
-    if (initialData.settings) {
-        const settingsRef = doc(db, "config", "globalSettings"); // Fixed ID for settings
-        batch.set(settingsRef, initialData.settings);
-        operationCount++;
-    }
-
-    // Commit the changes
-    if (operationCount > 0) {
+    reader.onload = async (e) => {
         try {
-            await batch.commit();
-            console.log("✅ Success! Database populated.");
-            alert("Database successfully populated! Check your Firestore Console.");
+            const json = JSON.parse(e.target.result);
+            console.log("File parsed successfully. Processing rules...");
+            await processAndUpload(json);
         } catch (error) {
-            console.error("❌ Error uploading data:", error);
-            alert("Error uploading data. Check console for details.");
+            console.error("JSON Error:", error);
+            alert("Invalid JSON file.");
         }
+    };
+
+    reader.readAsText(file);
+}
+
+async function processAndUpload(data) {
+    const batch = writeBatch(db);
+    let count = 0;
+
+    // --- RULE 1: CALCULATE DATE LIMIT (4 MONTHS AGO) ---
+    const fourMonthsAgo = new Date();
+    fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
+    console.log(`Filtering data older than: ${fourMonthsAgo.toISOString().split('T')[0]}`);
+
+    // --- RULE 2: IDENTIFY LEFT TENANTS ---
+    // We create a set of IDs for tenants who have left to ensure we delete ALL their info
+    const leftTenantIds = new Set();
+    if (data.leftTenants) {
+        data.leftTenants.forEach(t => leftTenantIds.add(t.id));
+    }
+    console.log(`Found ${leftTenantIds.size} left tenants. Their data will be excluded.`);
+
+    // --- 1. UPLOAD ROOMS (Always keep) ---
+    if (data.rooms) {
+        data.rooms.forEach(room => {
+            const ref = doc(db, "rooms", room.id);
+            batch.set(ref, room);
+            count++;
+        });
+    }
+
+    // --- 2. UPLOAD TENANTS (Only Active Ones) ---
+    if (data.tenants) {
+        data.tenants.forEach(tenant => {
+            // Safety check: Make sure active tenant isn't accidentally in left list
+            if (!leftTenantIds.has(tenant.id)) {
+                const ref = doc(db, "tenants", tenant.id);
+                batch.set(ref, tenant);
+                count++;
+            }
+        });
+    }
+
+    // --- 3. UPLOAD DUES (Apply 4 Month Rule + Exclude Left Tenants) ---
+    if (data.dues) {
+        data.dues.forEach(due => {
+            const dueDate = new Date(due.date);
+            const isRecent = dueDate >= fourMonthsAgo;
+            const isActiveTenant = !leftTenantIds.has(due.tenantId);
+
+            if (isRecent && isActiveTenant) {
+                const ref = doc(db, "dues", due.id);
+                batch.set(ref, due);
+                count++;
+            }
+        });
+    }
+
+    // --- 4. UPLOAD PAYMENTS (Apply 4 Month Rule + Exclude Left Tenants) ---
+    if (data.payments) {
+        data.payments.forEach(pay => {
+            const payDate = new Date(pay.date);
+            const isRecent = payDate >= fourMonthsAgo;
+            const isActiveTenant = !leftTenantIds.has(pay.tenantId);
+
+            if (isRecent && isActiveTenant) {
+                const ref = doc(db, "payments", pay.id);
+                batch.set(ref, pay);
+                count++;
+            }
+        });
+    }
+
+    // --- 5. UPLOAD READINGS (Apply 4 Month Rule) ---
+    if (data.utilityReadings) {
+        data.utilityReadings.forEach(reading => {
+            const readDate = new Date(reading.date);
+            if (readDate >= fourMonthsAgo) {
+                const ref = doc(db, "utilityReadings", reading.id);
+                batch.set(ref, reading);
+                count++;
+            }
+        });
+    }
+
+    // --- 6. UPLOAD SETTINGS ---
+    if (data.settings) {
+        const ref = doc(db, "config", "globalSettings");
+        batch.set(ref, data.settings);
+        count++;
+    }
+
+    // --- COMMIT TO FIREBASE ---
+    if (count > 0) {
+        // Firestore batches are limited to 500. 
+        // If you have >500 items, we would need to split this. 
+        // For now, assuming <500 items for 4 months of data.
+        await batch.commit();
+        alert(`✅ Upload Complete! \n- Processed ${count} records.\n- Removed data older than 4 months.\n- Deleted all Left Tenant info.`);
+        location.reload(); // Refresh page to see new data
     } else {
-        console.log("No data found to upload.");
+        alert("No relevant data found to upload.");
     }
 }
